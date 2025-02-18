@@ -1,74 +1,77 @@
-import React, { useEffect, useRef } from 'react';
-import {
-    init as coreInit,
-    RenderingEngine,
-    Enums,
-    volumeLoader,
-    setVolumesForViewports,
-} from '@cornerstonejs/core';
-import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader';
-import { createImageIdsAndCacheMetaData } from '../../cornerstone3D/utils/demo/helpers';
-// import { createImageIdsAndCacheMetaData } from '@cornerstonejs/core';
-
-const { ViewportType, OrientationAxis } = Enums;
+import React, { useEffect, useRef, useState } from 'react';
+import * as cornerstone3D from '@cornerstonejs/core';
+import * as cornerstoneDICOMImageLoader from '@cornerstonejs/dicom-image-loader';
+import * as cornerstoneTools from '@cornerstonejs/tools';
+import { Enums, volumeLoader } from '@cornerstonejs/core';
 
 const Cornerstone3DViewer: React.FC = () => {
-    const axialRef = useRef<HTMLDivElement>(null);
-    const sagittalRef = useRef<HTMLDivElement>(null);
-    const coronalRef = useRef<HTMLDivElement>(null);
+  const elementRef = useRef<HTMLDivElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
 
-    useEffect(() => {
-        async function run() {
-            await coreInit();
-            await dicomImageLoaderInit();
+  useEffect(() => {
+    const initViewer = async (imageId: string) => {
+      await cornerstone3D.init();
+      cornerstoneTools.init();
 
-            const imageIds = await createImageIdsAndCacheMetaData({
-                StudyInstanceUID: '1.3.6.1.4.1.14519.5.2.1.7009.2403.334240657131972136850343327463',
-                SeriesInstanceUID: '1.3.6.1.4.1.14519.5.2.1.7009.2403.226151125820845824875394858561',
-                wadoRsRoot: 'https://d14fa38qiwhyfd.cloudfront.net/dicomweb',
-            });
-
-            const renderingEngineId = 'myRenderingEngine';
-            const renderingEngine = new RenderingEngine(renderingEngineId);
-
-            const volumeId = 'myVolume';
-            const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds });
-
-            const viewports = [
-                {
-                    viewportId: 'CT_AXIAL',
-                    element: axialRef.current,
-                    type: ViewportType.ORTHOGRAPHIC,
-                    defaultOptions: { orientation: OrientationAxis.AXIAL },
-                },
-                {
-                    viewportId: 'CT_SAGITTAL',
-                    element: sagittalRef.current,
-                    type: ViewportType.ORTHOGRAPHIC,
-                    defaultOptions: { orientation: OrientationAxis.SAGITTAL },
-                },
-                {
-                    viewportId: 'CT_CORONAL',
-                    element: coronalRef.current,
-                    type: ViewportType.ORTHOGRAPHIC,
-                    defaultOptions: { orientation: OrientationAxis.CORONAL },
-                },
-            ];
-
-            renderingEngine.setViewports(viewports);
-            volume.load();
-            setVolumesForViewports(renderingEngine, [{ volumeId }], viewports.map(v => v.viewportId));
+      if (!elementRef.current) return;
+      
+      const renderingEngineId = 'myRenderingEngine';
+      const viewportId = 'CT_AXIAL';
+      
+      const renderingEngine = new cornerstone3D.RenderingEngine(renderingEngineId);
+      
+      renderingEngine.enableElement({
+        viewportId,
+        element: elementRef.current,
+        type: Enums.ViewportType.ORTHOGRAPHIC,
+      });
+      
+      const viewport = renderingEngine.getViewport(viewportId) as cornerstone3D.VolumeViewport;
+      
+      if (!viewport) {
+        console.error("Viewport not found");
+        return;
+      }
+      
+      try {
+        // Ensure metadata exists before destructuring
+        const metadata = cornerstone3D.metaData.get('generalSeriesModule', imageId);
+        if (!metadata) {
+          console.error('Metadata not found for imageId:', imageId);
+          return;
         }
-        run();
-    }, []);
 
-    return (
-        <div style={{ display: 'flex', flexDirection: 'row', gap: '10px' }}>
-            <div ref={axialRef} style={{ width: '500px', height: '500px', backgroundColor: 'black' }} />
-            <div ref={sagittalRef} style={{ width: '500px', height: '500px', backgroundColor: 'black' }} />
-            <div ref={coronalRef} style={{ width: '500px', height: '500px', backgroundColor: 'black' }} />
-        </div>
-    );
+        console.log('Metadata:', metadata);
+        const volume = await volumeLoader.createAndCacheVolume('myVolume', {
+          imageIds: [imageId]
+        });
+
+        viewport.setVolumes([{ volumeId: volume.volumeId, callback: () => {} }]);
+        viewport.render();
+      } catch (error) {
+        console.error("Error loading DICOM image", error);
+      }
+    };
+
+    if (file) {
+      const imageId = cornerstoneDICOMImageLoader.wadouri.getImageIdFromFile(file);
+
+      initViewer(imageId);
+    }
+  }, [file]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      setFile(event.target.files[0]);
+    }
+  };
+
+  return (
+    <div>
+      <input type="file" accept=".dcm" onChange={handleFileChange} />
+      <div ref={elementRef} style={{ width: '512px', height: '512px', background: 'black' }} />
+    </div>
+  );
 };
 
 export default Cornerstone3DViewer;
