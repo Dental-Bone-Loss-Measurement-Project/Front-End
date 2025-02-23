@@ -16,12 +16,16 @@
     "@cornerstonejs/nifti-volume-loader": "^2.19.11",
     "@cornerstonejs/tools": "^2.19.11",
     "@icr/polyseg-wasm": "^0.4.0",
+    "@itk-wasm/morphological-contour-interpolation": "^1.1.0",
+    "canvas": "^3.1.0",
     "dcmjs": "0.33.0",
     "dicom-parser": "1.8.21",
     "dicomweb-client": "0.10.4",
+    "itk-wasm": "^1.0.0-b.188",
     "nifti-reader-js": "^0.7.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "resemblejs": "^5.0.0",
     "vite-plugin-wasm": "^3.3.0"
   },
   "devDependencies": {
