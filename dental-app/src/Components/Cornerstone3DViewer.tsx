@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { Types } from '@cornerstonejs/core';
 import {
   RenderingEngine,
@@ -18,6 +18,8 @@ import {
 } from '../../utils/demo/helpers';
 
 const Cornerstone3DViewer = () => {
+  const toolbarRef = useRef(null); // Create a ref for the toolbar container
+
   useEffect(() => {
     const { ViewportType } = Enums;
     const renderingEngineId = 'myRenderingEngine';
@@ -29,25 +31,37 @@ const Cornerstone3DViewer = () => {
     const ptVolumeName = 'PT_VOLUME_ID';
     const ptVolumeId = `${volumeLoaderScheme}:${ptVolumeName}`;
 
+    // Set the title and description
     setTitleAndDescription(
       'Volume Viewport API With Multiple Volumes',
       'Demonstrates how to interact with a Volume viewport when using fusion.'
     );
 
+    // Get the content container
     const content = document.getElementById('content');
     if (!content) {
       console.error('Content element not found in the DOM');
       return;
     }
 
+    // Create the cornerstone element
     const element = document.createElement('div');
     element.id = 'cornerstone-element';
     element.style.width = '500px';
     element.style.height = '500px';
 
+    // Append the cornerstone element to the content container
     content.appendChild(element);
 
+    // Ensure the toolbar container exists
+    if (!toolbarRef.current) {
+      console.error('Toolbar container not found in the DOM');
+      return;
+    }
+
+    // Add a slider to the toolbar
     addSliderToToolbar({
+      container: toolbarRef.current, // Pass the toolbar container
       title: 'Opacity',
       range: [0, 1],
       step: 0.1,
@@ -66,7 +80,9 @@ const Cornerstone3DViewer = () => {
       },
     });
 
+    // Add a button to set the CT VOI range
     addButtonToToolbar({
+      container: toolbarRef.current, // Pass the toolbar container
       title: 'Set CT VOI Range',
       onClick: () => {
         const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -79,7 +95,9 @@ const Cornerstone3DViewer = () => {
       },
     });
 
+    // Add a button to reset the viewport
     addButtonToToolbar({
+      container: toolbarRef.current, // Pass the toolbar container
       title: 'Reset Viewport',
       onClick: () => {
         const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -92,10 +110,10 @@ const Cornerstone3DViewer = () => {
       },
     });
 
-    const fused = false;
-
+    // Add a button to toggle PET visibility
     addButtonToToolbar({
-      title: 'toggle PET',
+      container: toolbarRef.current, // Pass the toolbar container
+      title: 'Toggle PET',
       onClick: () => {
         const renderingEngine = getRenderingEngine(renderingEngineId);
         const viewport = renderingEngine.getViewport(
@@ -113,6 +131,7 @@ const Cornerstone3DViewer = () => {
       },
     });
 
+    // Add a dropdown to change the orientation
     const orientationOptions = {
       axial: 'axial',
       sagittal: 'sagittal',
@@ -121,6 +140,7 @@ const Cornerstone3DViewer = () => {
     };
 
     addDropdownToToolbar({
+      container: toolbarRef.current, // Pass the toolbar container
       options: {
         values: ['axial', 'sagittal', 'coronal', 'oblique'],
         defaultValue: 'sagittal',
@@ -158,6 +178,7 @@ const Cornerstone3DViewer = () => {
       },
     });
 
+    // Initialize and run the demo
     const run = async () => {
       try {
         await initDemo();
@@ -225,6 +246,7 @@ const Cornerstone3DViewer = () => {
 
     run();
 
+    // Cleanup on unmount
     return () => {
       const renderingEngine = getRenderingEngine(renderingEngineId);
       if (renderingEngine) {
@@ -237,8 +259,8 @@ const Cornerstone3DViewer = () => {
     <div>
       <div id="demo-title"></div>
       <div id="demo-description"></div>
-      <div id="content">
-      </div>
+      <div id="toolbar" ref={toolbarRef}></div> 
+      <div id="content"></div>
     </div>
   );
 };
