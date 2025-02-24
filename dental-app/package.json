@@ -22,6 +22,7 @@
     "dicom-parser": "1.8.21",
     "dicomweb-client": "0.10.4",
     "itk-wasm": "^1.0.0-b.188",
+    "jsesc": "^3.1.0",
     "nifti-reader-js": "^0.7.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
