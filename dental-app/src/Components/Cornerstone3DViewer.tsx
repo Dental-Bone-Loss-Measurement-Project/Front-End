@@ -18,9 +18,14 @@ import {
 } from '../../utils/demo/helpers';
 
 const Cornerstone3DViewer = () => {
-  const toolbarRef = useRef(null); // Create a ref for the toolbar container
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Clear the toolbar container to avoid duplicate items.
+    if (toolbarRef.current) {
+      toolbarRef.current.innerHTML = '';
+    }
+
     const { ViewportType } = Enums;
     const renderingEngineId = 'myRenderingEngine';
     const viewportId = 'CT_SAGITTAL_STACK';
@@ -31,37 +36,34 @@ const Cornerstone3DViewer = () => {
     const ptVolumeName = 'PT_VOLUME_ID';
     const ptVolumeId = `${volumeLoaderScheme}:${ptVolumeName}`;
 
-    // Set the title and description
+    // Set title and description for the demo.
     setTitleAndDescription(
       'Volume Viewport API With Multiple Volumes',
       'Demonstrates how to interact with a Volume viewport when using fusion.'
     );
 
-    // Get the content container
+    // Get the content container.
     const content = document.getElementById('content');
     if (!content) {
       console.error('Content element not found in the DOM');
       return;
     }
 
-    // Create the cornerstone element
+    // Create and configure the cornerstone element.
     const element = document.createElement('div');
     element.id = 'cornerstone-element';
     element.style.width = '500px';
     element.style.height = '500px';
-
-    // Append the cornerstone element to the content container
     content.appendChild(element);
 
-    // Ensure the toolbar container exists
     if (!toolbarRef.current) {
       console.error('Toolbar container not found in the DOM');
       return;
     }
 
-    // Add a slider to the toolbar
+    // Add a slider to the toolbar.
     addSliderToToolbar({
-      container: toolbarRef.current, // Pass the toolbar container
+      container: toolbarRef.current,
       title: 'Opacity',
       range: [0, 1],
       step: 0.1,
@@ -80,9 +82,9 @@ const Cornerstone3DViewer = () => {
       },
     });
 
-    // Add a button to set the CT VOI range
+    // Add a button to set the CT VOI range.
     addButtonToToolbar({
-      container: toolbarRef.current, // Pass the toolbar container
+      container: toolbarRef.current,
       title: 'Set CT VOI Range',
       onClick: () => {
         const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -95,9 +97,9 @@ const Cornerstone3DViewer = () => {
       },
     });
 
-    // Add a button to reset the viewport
+    // Add a button to reset the viewport.
     addButtonToToolbar({
-      container: toolbarRef.current, // Pass the toolbar container
+      container: toolbarRef.current,
       title: 'Reset Viewport',
       onClick: () => {
         const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -110,9 +112,9 @@ const Cornerstone3DViewer = () => {
       },
     });
 
-    // Add a button to toggle PET visibility
+    // Add a button to toggle PET visibility.
     addButtonToToolbar({
-      container: toolbarRef.current, // Pass the toolbar container
+      container: toolbarRef.current,
       title: 'Toggle PET',
       onClick: () => {
         const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -131,7 +133,7 @@ const Cornerstone3DViewer = () => {
       },
     });
 
-    // Add a dropdown to change the orientation
+    // Define orientation options.
     const orientationOptions = {
       axial: 'axial',
       sagittal: 'sagittal',
@@ -139,8 +141,9 @@ const Cornerstone3DViewer = () => {
       oblique: 'oblique',
     };
 
+    // Add a dropdown to change the orientation.
     addDropdownToToolbar({
-      container: toolbarRef.current, // Pass the toolbar container
+      container: toolbarRef.current,
       options: {
         values: ['axial', 'sagittal', 'coronal', 'oblique'],
         defaultValue: 'sagittal',
@@ -150,9 +153,6 @@ const Cornerstone3DViewer = () => {
         const viewport = renderingEngine.getViewport(
           viewportId
         ) as Types.IVolumeViewport;
-
-        let viewUp;
-        let viewPlaneNormal;
 
         switch (selectedValue) {
           case orientationOptions.axial:
@@ -165,20 +165,23 @@ const Cornerstone3DViewer = () => {
             viewport.setOrientation(Enums.OrientationAxis.CORONAL);
             break;
           case orientationOptions.oblique:
-            viewUp = [-0.5962687530844388, 0.5453181550345819, -0.5891448751239446];
-            viewPlaneNormal = [
-              -0.5962687530844388, 0.5453181550345819, -0.5891448751239446,
+            const viewUp = [-0.5962687530844388, 0.5453181550345819, -0.5891448751239446];
+            const viewPlaneNormal = [
+              -0.5962687530844388,
+              0.5453181550345819,
+              -0.5891448751239446,
             ];
             viewport.setCamera({ viewUp, viewPlaneNormal });
             viewport.resetCamera();
             break;
+          default:
+            break;
         }
-
         viewport.render();
       },
     });
 
-    // Initialize and run the demo
+    // Initialize and run the demo.
     const run = async () => {
       try {
         await initDemo();
@@ -246,7 +249,7 @@ const Cornerstone3DViewer = () => {
 
     run();
 
-    // Cleanup on unmount
+    // Cleanup on unmount.
     return () => {
       const renderingEngine = getRenderingEngine(renderingEngineId);
       if (renderingEngine) {
@@ -259,7 +262,7 @@ const Cornerstone3DViewer = () => {
     <div>
       <div id="demo-title"></div>
       <div id="demo-description"></div>
-      <div id="toolbar" ref={toolbarRef}></div> 
+      <div id="toolbar" ref={toolbarRef}></div>
       <div id="content"></div>
     </div>
   );
