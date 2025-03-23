@@ -1,4 +1,7 @@
 /* index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Reset default browser margins/padding */
 html, body {
