@@ -1,0 +1,35 @@
+/* sidebar.css */
+.sidebar {
+  /* Remove fixed positioning so it stays in the layout */
+  height: 100vh;
+  background-color: #1f2937; /* Dark gray background */
+  color: white;
+  overflow: hidden;
+}
+
+.sidebar-open {
+  width: 16rem; /* Fixed width for the always-open sidebar */
+}
+
+.sidebar-nav {
+  margin-top: 2.5rem; /* Similar to Tailwind's mt-10 */
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Similar to Tailwind's gap-6 */
+}
+
+.sidebar-btn {
+  display: flex;
+  align-items: center;
+  gap: 1rem; /* Similar to Tailwind's gap-4 */
+  padding: 1rem;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-btn:hover {
+  background-color: #374151; /* Darker gray on hover */
+}
