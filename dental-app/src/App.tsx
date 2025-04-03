@@ -1,91 +1,50 @@
-import { useEffect,  useRef } from "react"
-import createImageIdsAndCacheMetaData  from "./lib/createImageIdsAndCacheMetaData"
-import { RenderingEngine, Enums, type Types, volumeLoader, cornerstoneStreamingImageVolumeLoader } from "@cornerstonejs/core"
-import {init as csRenderInit} from "@cornerstonejs/core"
-import {init as csToolsInit} from "@cornerstonejs/tools"
-import {init as dicomImageLoaderInit} from "@cornerstonejs/dicom-image-loader"
+import { useEffect, useRef } from "react";
+import createImageIdsAndCacheMetaData from "./lib/createImageIdsAndCacheMetaData";
+import {
+  RenderingEngine,
+  Enums,
+  type Types,
+  volumeLoader,
+  cornerstoneStreamingImageVolumeLoader,
+} from "@cornerstonejs/core";
+import { init as csRenderInit } from "@cornerstonejs/core";
+import { init as csToolsInit } from "@cornerstonejs/tools";
+import { init as dicomImageLoaderInit } from "@cornerstonejs/dicom-image-loader";
+import { SideBar } from './Components/SideBar';
+import VolumeViewer3D from './Components/VolumeViewer3D';
+import MultiplannarConstruction from './Components/MultiplanarConstruction';
 
-
-volumeLoader.registerUnknownVolumeLoader(
-  cornerstoneStreamingImageVolumeLoader 
-)
+volumeLoader.registerUnknownVolumeLoader(cornerstoneStreamingImageVolumeLoader);
 
 function App() {
-  const elementRef = useRef<HTMLDivElement>(null)
-  const running = useRef(false)
-
-  useEffect(() => {
-    const setup = async () => {
-      if (running.current) {
-        return
-      }
-      running.current = true
-      
-      await csRenderInit()
-      await csToolsInit()
-      dicomImageLoaderInit({maxWebWorkers:1})
-
-      // Get Cornerstone imageIds and fetch metadata into RAM
-      const imageIds = await createImageIdsAndCacheMetaData({
-        StudyInstanceUID:
-          "1.3.6.1.4.1.14519.5.2.1.7009.2403.334240657131972136850343327463",
-        SeriesInstanceUID:
-          "1.3.6.1.4.1.14519.5.2.1.7009.2403.226151125820845824875394858561",
-        wadoRsRoot: "https://d3t6nz73ql33tx.cloudfront.net/dicomweb",
-      })
-
-      // Instantiate a rendering engine
-      const renderingEngineId = "myRenderingEngine"
-      const renderingEngine = new RenderingEngine(renderingEngineId)
-      const viewportId = "CT"
-
-
-      const viewportInput = {
-        viewportId,
-        type: Enums.ViewportType.ORTHOGRAPHIC,
-        element: elementRef.current,
-        defaultOptions: {
-          orientation: Enums.OrientationAxis.SAGITTAL,
-        },
-      }
-
-      renderingEngine.enableElement(viewportInput)
-
-      // Get the stack viewport that was created
-      const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport
-
-      // Define a volume in memory
-      const volumeId = "streamingImageVolume"
-      const volume = await volumeLoader.createAndCacheVolume(volumeId, {
-        imageIds,
-      })
-
-      // Set the volume to load
-      // @ts-ignore
-      volume.load()
-
-      // Set the volume on the viewport and it's default properties
-      viewport.setVolumes([{ volumeId}])
-
-      // Render the image
-      viewport.render()
-    }
-
-    setup()
-
-    // Create a stack viewport
-  }, [elementRef, running])
 
   return (
-    <div
-      ref={elementRef}
-      style={{
-        width: "512px",
-        height: "512px",
-        backgroundColor: "#000",
-      }}
-    ></div>
-  )
+    <div className="app-container flex h-screen">
+      {/* Sidebar on the left */}
+      <SideBar />
+      {/* Main content area */}
+      <div className="content-container flex-1 p-4">
+        <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
+          {/* 3D Viewer */}
+          <div className="border border-gray-300 p-2">
+            <VolumeViewer3D />
+          </div>
+          {/* Sagittal view */}
+          <div className="border border-gray-300 p-2">
+            <MultiplannarConstruction />
+          </div>
+          {/* Coronal view */}
+          <div className="border border-gray-300 p-2">
+            <MultiplannarConstruction />
+          </div>
+          {/* Axial view */}
+          <div className="border border-gray-300 p-2">
+            <MultiplannarConstruction />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
