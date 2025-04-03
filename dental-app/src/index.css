@@ -1,22 +1,7 @@
 /* index.css */
+@import "tailwindcss";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Reset default browser margins/padding */
-html, body {
-  margin: 0;
-  padding: 0;
-}
 
-/* Flex container for sidebar and main content */
-.app-container {
-  display: flex;
-  height: 100vh; /* Full viewport height */
-}
-
-/* Main content area (3D viewer) */
-.content-container {
-  flex: 1;          /* Takes up remaining space */
-  position: relative; /* Enables positioning of inner elements if needed */
-}
