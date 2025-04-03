@@ -1,5 +1,8 @@
 import VolumeViewer3D from "../Components/VolumeViewer3D";
 import MultiplannarConstruction from "../Components/MultiplanarConstruction";
+import CoronalView from "../Components/Dental_Viewer/CoronalView";
+import AxialView from "../Components/Dental_Viewer/AxialView";
+import SagittalView from "../Components/Dental_Viewer/SagittalView";
 
 const DentalViewerPage = () => {
   return (
@@ -10,15 +13,15 @@ const DentalViewerPage = () => {
       </div>
       {/* Sagittal view */}
       <div className="border border-gray-300 p-2">
-        <MultiplannarConstruction />
+        <SagittalView />
       </div>
       {/* Coronal view */}
       <div className="border border-gray-300 p-2">
-        <MultiplannarConstruction />
+        <CoronalView />
       </div>
       {/* Axial view */}
       <div className="border border-gray-300 p-2">
-        <MultiplannarConstruction />
+        <AxialView />
       </div>
     </div>
   );
