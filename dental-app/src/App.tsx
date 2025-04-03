@@ -1,20 +1,10 @@
-import { useEffect, useRef } from "react";
-import createImageIdsAndCacheMetaData from "./lib/createImageIdsAndCacheMetaData";
 import {
-  RenderingEngine,
-  Enums,
-  type Types,
   volumeLoader,
   cornerstoneStreamingImageVolumeLoader,
 } from "@cornerstonejs/core";
-import { init as csRenderInit } from "@cornerstonejs/core";
-import { init as csToolsInit } from "@cornerstonejs/tools";
-import { init as dicomImageLoaderInit } from "@cornerstonejs/dicom-image-loader";
 import { SideBar } from './Components/SideBar';
 import VolumeViewer3D from './Components/VolumeViewer3D';
 import MultiplannarConstruction from './Components/MultiplanarConstruction';
-
-volumeLoader.registerUnknownVolumeLoader(cornerstoneStreamingImageVolumeLoader);
 
 function App() {
 
