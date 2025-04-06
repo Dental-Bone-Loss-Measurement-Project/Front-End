@@ -4,7 +4,6 @@ import { renderingEngineId } from '../../../utils/renderingEngineSetup';
 import { getRenderingEngine, Enums } from '@cornerstonejs/core';
 
 const viewportId = 'CT_SAGITTAL';
-const size = '500px';
 
 const SagittalView: React.FC = () => {
   const elementRef = useRef<HTMLDivElement>(null);
@@ -36,12 +35,7 @@ const SagittalView: React.FC = () => {
   return (
     <div
       ref={elementRef}
-      style={{
-        width: size,
-        height: size,
-        border: '1px solid #555',
-        margin: '2px',
-      }}
+      className="w-full h-full border border-gray-700 m-[2px]"
     />
   );
 };

@@ -8,22 +8,16 @@ import {
   Types,
 } from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
-// import { TrackballRotateTool } from '@cornerstonejs/tools';
 import {
-  // addButtonToToolbar,
-  // addDropdownToToolbar,
   addManipulationBindings,
   createImageIdsAndCacheMetaData,
   initDemo,
-  // setTitleAndDescription,
 } from '../../utils/demo/helpers';
 import { RGB } from '@cornerstonejs/core/types';
 
 const { ToolGroupManager, Enums: csToolsEnums } = cornerstoneTools;
 const { ViewportType } = Enums;
-// const { MouseBindings } = csToolsEnums;
 
-// Constants
 const volumeName = 'CT_VOLUME_ID';
 const volumeLoaderScheme = 'cornerstoneStreamingImageVolume';
 const volumeId = `${volumeLoaderScheme}:${volumeName}`;
@@ -35,6 +29,8 @@ const VolumeViewer3D: React.FC = () => {
   const elementRef = useRef<HTMLDivElement>(null);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const viewportRef = useRef<Types.IVolumeViewport | null>(null);
+  
+  // Default preset is CT-Bone
   const [preset, setPreset] = useState<string>('CT-Bone');
   const [rotation, setRotation] = useState<number>(0);
 
@@ -117,33 +113,25 @@ const VolumeViewer3D: React.FC = () => {
     setRotation(Math.random() * 360);
   };
 
-
   return (
-    <div>
-      <div id="demo-title" />
+    <div className="h-full">
+      <div id="demo-title" className='' />
       <div id="demo-description" />
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={handleRandomRotation} style={{ marginRight: '1rem' }}>
+      <div className="mb-4">
+        <button onClick={handleRandomRotation} className="mr-4">
           Apply Random Rotation
         </button>
-        <select name='preset' title='Presets' value={preset} onChange={handlePresetChange}>
-          {CONSTANTS.VIEWPORT_PRESETS.map((preset) => (
-            <option key={preset.name} value={preset.name}>
-              {preset.name}
-            </option>
-          ))}
+        <select name="preset" title="Presets" value={preset} onChange={handlePresetChange}>
+          <option value="CT-Bone">CT-Bone</option>
+          <option value="CT-Bones">CT-Bones</option>
         </select>
       </div>
+      {/* This container now takes full width and height of its parent */}
       <div
         ref={elementRef}
-        style={{
-          width: '500px',
-          height: '500px',
-          position: 'relative',
-        }}
+        className="w-full h-full relative"
         onContextMenu={(e) => e.preventDefault()}
-      />
-      <p>Click the image to rotate it.</p>
+      ></div>
     </div>
   );
 };
