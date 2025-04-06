@@ -1,9 +1,8 @@
-// AxialView.tsx
-import React, { useRef, useEffect } from 'react';
-import { renderingEngineId } from '../../../utils/renderingEngineSetup';
-import { getRenderingEngine, Enums } from '@cornerstonejs/core';
+import React, { useRef, useEffect } from "react";
+import { renderingEngineId } from "../../../utils/renderingEngineSetup";
+import { getRenderingEngine, Enums } from "@cornerstonejs/core";
 
-const viewportId = 'CT_AXIAL';
+const viewportId = "CT_AXIAL";
 
 const AxialView: React.FC = () => {
   const elementRef = useRef<HTMLDivElement>(null);
@@ -16,7 +15,7 @@ const AxialView: React.FC = () => {
       // Get the existing rendering engine instance.
       const renderingEngine = getRenderingEngine(renderingEngineId);
 
-      // Configure the single viewport for the axial view.
+      // Configure the viewport for the axial view.
       renderingEngine.setViewports([
         {
           viewportId,
@@ -29,7 +28,7 @@ const AxialView: React.FC = () => {
         },
       ]);
 
-      // (Optional) Render just this viewport or let the parent container trigger the render.
+      // Render just this viewport.
       renderingEngine.renderViewports([viewportId]);
     }
     setupAxial();
