@@ -1,43 +1,39 @@
-import React, { useRef, useEffect } from "react";
-import { renderingEngineId } from "../../../utils/renderingEngineSetup";
-import { getRenderingEngine, Enums } from "@cornerstonejs/core";
+import { useEffect, useRef } from 'react';
+import { Enums } from '@cornerstonejs/core';
 
-const viewportId = "CT_AXIAL";
+interface Props {
+  renderingEngineId: string;
+  viewportId: string;
+}
 
-const AxialView: React.FC = () => {
-  const elementRef = useRef<HTMLDivElement>(null);
+const AxialView: React.FC<Props> = ({ viewportId }) => {
+  const axialRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    async function setupAxial() {
-      const element = elementRef.current;
-      if (!element) return;
+    if (!axialRef.current) return;
 
-      // Get the existing rendering engine instance.
-      const renderingEngine = getRenderingEngine(renderingEngineId);
+    // Prevent default context menu
+    axialRef.current.oncontextmenu = (e) => e.preventDefault();
 
-      // Configure the viewport for the axial view.
-      renderingEngine.setViewports([
-        {
-          viewportId,
-          element,
-          type: Enums.ViewportType.ORTHOGRAPHIC,
-          defaultOptions: {
-            orientation: Enums.OrientationAxis.AXIAL,
-            background: [0, 0, 0],
-          },
-        },
-      ]);
+    // Set up initial viewport size
+    const updateSize = () => {
+      if (axialRef.current) {
+        axialRef.current.style.width = `${window.innerWidth * 0.45}px`;
+        axialRef.current.style.height = `${window.innerHeight * 0.45}px`;
+      }
+    };
 
-      // Render just this viewport.
-      renderingEngine.renderViewports([viewportId]);
-    }
-    setupAxial();
+    window.addEventListener('resize', updateSize);
+    updateSize();
+
+    return () => window.removeEventListener('resize', updateSize);
   }, []);
 
   return (
     <div
-      ref={elementRef}
-      className="w-full h-full border border-gray-700 m-[2px]"
+      id={viewportId}
+      ref={axialRef}
+      className="w-full h-full"
     />
   );
 };

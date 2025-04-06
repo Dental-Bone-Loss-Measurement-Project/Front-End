@@ -81,4 +81,4 @@ export async function initializeEngine(
   renderingEngine.setViewports(viewports);
   // Render all viewports.
   renderingEngine.renderViewports(viewportIds);
-} // <-- Added closing bracket here
+}
