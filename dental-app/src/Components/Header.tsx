@@ -6,11 +6,12 @@ const Header: React.FC = () => {
         { name: 'item3', link: '/' },
     ];
     return (
-        <header className='bg-blue-900'>
+        <header className='bg-gray-700'>
             <div className='container mx-auto flex justify-between items-center p-4'>
-                <a href='/'>
-                    <img src="\src\assets\WhatsApp Image 2025-04-06 at 15.20.32_962b4bea.jpg" alt='logo_img' className='w-20 h-20'>
+                <a href='/' className='flex items-center'>
+                    <img src="\src\assets\WhatsApp_Image_2025-04-06_at_15.20.32_962b4bea-removebg-preview.png" alt='logo_img' className='w-20 h-20'>
                     </img>
+                    <h3 className='text-white text-2xl font-bold'>Dental App</h3>
                 </a>  
                 <nav>
                     <ul className='flex gap-8 items-center'>
