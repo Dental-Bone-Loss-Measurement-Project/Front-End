@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Enums } from '@cornerstonejs/core';
 
 interface Props {
   renderingEngineId: string;
