@@ -314,24 +314,25 @@ const CrossHairs = () => {
     }, [axialViewportElementRef, sagittalViewportElementRef, coronalViewportElementRef, running])
 
     return (
-        <div className="flex flex-col items-center space-y-8 p-8">
-            <div id="demo-toolbar" className="w-full bg-gray-100 p-4 flex flex-wrap gap-4 justify-center"/>
-            <div className="flex flex-col items-center">
-                <div className="flex flex-row flex-wrap gap-4 justify-center">
-                    <div className="relative border border-gray-600 overflow-hidden"
-                         style={{width: viewportSize, height: viewportSize}}>
-                        <VolumeViewer3D/>
-                    </div>
-                    <div ref={axialViewportElementRef} className="relative border border-gray-600"
-                         style={{width: viewportSize, height: viewportSize}}/>
-                    <div ref={sagittalViewportElementRef} className="relative border border-gray-600"
-                         style={{width: viewportSize, height: viewportSize}}/>
-                    <div ref={coronalViewportElementRef} className="relative border border-gray-600"
-                         style={{width: viewportSize, height: viewportSize}}/>
-                </div>
-            </div>
-        </div>
-    )
+      <div className="flex flex-col items-center space-y-8 p-8">
+          <div id="demo-toolbar" className="w-full bg-gray-100 p-4 flex flex-wrap gap-4 justify-center"/>
+          <div className="flex flex-col items-center">
+              {/* Changed to grid layout for 2x2 matrix */}
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="relative border border-gray-600 overflow-hidden"
+                       style={{width: viewportSize, height: viewportSize}}>
+                      <VolumeViewer3D/>
+                  </div>
+                  <div ref={axialViewportElementRef} className="relative border border-gray-600"
+                       style={{width: viewportSize, height: viewportSize}}/>
+                  <div ref={sagittalViewportElementRef} className="relative border border-gray-600"
+                       style={{width: viewportSize, height: viewportSize}}/>
+                  <div ref={coronalViewportElementRef} className="relative border border-gray-600"
+                       style={{width: viewportSize, height: viewportSize}}/>
+              </div>
+          </div>
+      </div>
+  )
 }
 
 export default CrossHairs
