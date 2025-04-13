@@ -18,6 +18,7 @@ import {init as csToolsInit} from "@cornerstonejs/tools"
 import {init as dicomImageLoaderInit} from "@cornerstonejs/dicom-image-loader"
 import * as cornerstoneTools from '@cornerstonejs/tools';
 import VolumeViewport3D from "./VolumeViewer3D";
+import ReactDOM from 'react-dom';
 
 // helper imports
 import {
@@ -55,7 +56,8 @@ const viewportIds = [axialViewportId, sagittalViewportId, coronalViewportId];
 const renderingEngineId = 'volumeRenderingEngine';
 const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 
-const viewportSize = '500px';
+const viewportSizeheight = '300px';
+const viewportSizewidth = '530px';
 
 const CrossHairs = () => {
 
@@ -314,21 +316,20 @@ const CrossHairs = () => {
     }, [axialViewportElementRef, sagittalViewportElementRef, coronalViewportElementRef, running])
 
     return (
-      <div className="flex flex-col items-center space-y-8 p-8">
-          <div id="demo-toolbar" className="w-full bg-gray-100 p-4 flex flex-wrap gap-4 justify-center"/>
+      <div className="flex flex-col items-center space-y-8">
+          {/* Remove the demo-toolbar div here */}
           <div className="flex flex-col items-center">
-              {/* Changed to grid layout for 2x2 matrix */}
               <div className="grid grid-cols-2 gap-4">
-                  <div className="relative border border-gray-600 overflow-hidden"
-                       style={{width: viewportSize, height: viewportSize}}>
+                  <div className="relative border border-blue-500/50 overflow-hidden"
+                       style={{width: viewportSizewidth, height: viewportSizeheight}}>
                       <VolumeViewer3D/>
                   </div>
-                  <div ref={axialViewportElementRef} className="relative border border-gray-600"
-                       style={{width: viewportSize, height: viewportSize}}/>
-                  <div ref={sagittalViewportElementRef} className="relative border border-gray-600"
-                       style={{width: viewportSize, height: viewportSize}}/>
-                  <div ref={coronalViewportElementRef} className="relative border border-gray-600"
-                       style={{width: viewportSize, height: viewportSize}}/>
+                  <div ref={axialViewportElementRef} className="relative border border-blue-500/50 overflow-hidden"
+                       style={{width: viewportSizewidth, height: viewportSizeheight}}/>
+                  <div ref={sagittalViewportElementRef} className="relative border border-blue-500/50 overflow-hidden"
+                       style={{width: viewportSizewidth, height: viewportSizeheight}}/>
+                  <div ref={coronalViewportElementRef} className="relative border border-blue-500/50 overflow-hidden"
+                       style={{width: viewportSizewidth, height: viewportSizeheight}}/>
               </div>
           </div>
       </div>
