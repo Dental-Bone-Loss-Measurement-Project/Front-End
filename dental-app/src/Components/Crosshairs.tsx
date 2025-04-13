@@ -17,6 +17,7 @@ import {init as csRenderInit} from "@cornerstonejs/core"
 import {init as csToolsInit} from "@cornerstonejs/tools"
 import {init as dicomImageLoaderInit} from "@cornerstonejs/dicom-image-loader"
 import * as cornerstoneTools from '@cornerstonejs/tools';
+import VolumeViewport3D from "./VolumeViewer3D";
 
 // helper imports
 import {
@@ -27,6 +28,7 @@ import {
     addButtonToToolbar,
     getLocalUrl,
 } from '../../utils/demo/helpers';
+import VolumeViewer3D from "./VolumeViewer3D";
 
 
 // extract the needed functions
@@ -316,6 +318,10 @@ const CrossHairs = () => {
             <div id="demo-toolbar" className="w-full bg-gray-100 p-4 flex flex-wrap gap-4 justify-center"/>
             <div className="flex flex-col items-center">
                 <div className="flex flex-row flex-wrap gap-4 justify-center">
+                    <div className="relative border border-gray-600 overflow-hidden"
+                         style={{width: viewportSize, height: viewportSize}}>
+                        <VolumeViewer3D/>
+                    </div>
                     <div ref={axialViewportElementRef} className="relative border border-gray-600"
                          style={{width: viewportSize, height: viewportSize}}/>
                     <div ref={sagittalViewportElementRef} className="relative border border-gray-600"
