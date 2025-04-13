@@ -69,6 +69,11 @@ const CrossHairs = () => {
 
     // Set up the toolbar
     useEffect(() => {
+      // Clear existing toolbar content to avoid duplication
+        const toolbar = document.getElementById('demo-toolbar');
+        if (toolbar) {
+          toolbar.innerHTML = '';
+  }
         addButtonToToolbar({
             title: 'Reset Camera',
             onClick: () => {
