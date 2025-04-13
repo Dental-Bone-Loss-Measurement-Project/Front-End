@@ -5,7 +5,6 @@ import Crosshairs from "./Components/Crosshairs";
 function App() {
   return (
     <div>
-      {/* Header */}
       <Header/>
       <div className="app-container flex h-screen">
         <SideBar />
