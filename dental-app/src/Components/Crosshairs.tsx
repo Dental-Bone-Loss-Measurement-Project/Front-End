@@ -55,7 +55,7 @@ const viewportIds = [axialViewportId, sagittalViewportId, coronalViewportId];
 const renderingEngineId = 'volumeRenderingEngine';
 const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 
-const viewportSize = '500px';
+const viewportSize = '450px';
 
 const CrossHairs = () => {
 

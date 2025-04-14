@@ -1,41 +1,44 @@
 import React, { useState, ChangeEvent } from 'react';
 import axios from 'axios';
 
-interface PanoramaResponse {
-  imageUrl: string; // URL of the processed panorama image
+interface UploadResponse {
+  imageShape: [number, number, number]; // (Depth, Height, Width)
+  panoramicViewUrl: string;
 }
 
-const PanoramaUploader: React.FC = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [panoramaUrl, setPanoramaUrl] = useState<string>('');
+const ImageUpload: React.FC = () => {
+  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [responseData, setResponseData] = useState<UploadResponse | null>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
+      setFile(e.target.files[0]);
+      setResponseData(null);
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (!file) return;
     setLoading(true);
     setError('');
-
     const formData = new FormData();
-    formData.append('scan', selectedFile);
+    formData.append('file', file);
 
     try {
-      // Replace the URL with your actual backend endpoint
-      const response = await axios.post<PanoramaResponse>('http://localhost:8000/process-scan', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+      const response = await axios.post<UploadResponse>(
+        'http://localhost:8000/upload-image',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
         }
-      });
-
-      setPanoramaUrl(response.data.imageUrl);
+      );
+      setResponseData(response.data);
     } catch (err: any) {
-      setError('Failed to process the scan.');
+      setError('Error processing the image. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
@@ -44,24 +47,26 @@ const PanoramaUploader: React.FC = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Upload CBCT Scan for Panorama Extraction</h1>
-      <input type="file" accept=".nifti,.mha,.dcm" onChange={handleFileChange} className="mb-4" />
-      <button 
-        onClick={handleUpload} 
-        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
-        disabled={loading}
+      <h1 className="text-xl font-bold mb-4">Upload CBCT Scan</h1>
+      <input type="file" accept=".mha,.nii,.dcm" onChange={handleFileChange} className="mb-4" />
+      <button
+        onClick={handleUpload}
+        disabled={loading || !file}
+        className="bg-blue-500 text-white py-2 px-4 rounded"
       >
         {loading ? 'Processing...' : 'Upload and Process'}
       </button>
-      {error && <div className="text-red-500 mt-2">{error}</div>}
-      {panoramaUrl && (
+      {error && <p className="text-red-500 mt-2">{error}</p>}
+      {responseData && (
         <div className="mt-4">
-          <h2 className="text-lg font-semibold">Extracted Panorama:</h2>
-          <img src={panoramaUrl} alt="Extracted Panorama" className="mt-2" />
+          <p>
+            <strong>CBCT Image Shape:</strong> {responseData.imageShape.join(', ')}
+          </p>
+          <img src={responseData.panoramicViewUrl} alt="Panoramic View" className="mt-2" />
         </div>
       )}
     </div>
   );
 };
 
-export default PanoramaUploader;
+export default ImageUpload;
