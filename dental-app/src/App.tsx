@@ -1,6 +1,6 @@
 import Header from "./Components/Header";
 import { SideBar } from "./Components/SideBar";
-// import Crosshairs from "./Components/Crosshairs";
+import CrossHairs from "./Components/Crosshairs";
 import ImageUpload from "./Components/Panorama";
 
 function App() {
@@ -14,6 +14,7 @@ function App() {
           <ImageUpload />
           {/* Add other components here */}
         </div>
+        <CrossHairs/>
       </div>
     </div>
   );
