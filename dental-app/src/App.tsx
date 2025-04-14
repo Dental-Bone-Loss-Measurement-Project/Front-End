@@ -7,7 +7,7 @@ function App() {
   return (
     <div>
       <Header/>
-      <div className="app-container flex h-screen">
+      <div className="app-container flex" style={{'alignSelf':'self-end', 'gap':'0.5em'}}>
         <SideBar />
         <div className="content-container flex-1 p-4">
           {/* <Crosshairs/> */}
