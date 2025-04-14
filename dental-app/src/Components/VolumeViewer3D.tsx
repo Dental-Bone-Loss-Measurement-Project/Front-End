@@ -32,7 +32,6 @@ const VolumeViewer3D: React.FC = () => {
   
   // Default preset is CT-Bone
   const [preset, setPreset] = useState<string>('CT-Bone');
-  const [rotation, setRotation] = useState<number>(0);
 
   useEffect(() => {
     const initialize = async () => {
@@ -98,29 +97,16 @@ const VolumeViewer3D: React.FC = () => {
     }
   }, [preset]);
 
-  useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.setViewPresentation({ rotation });
-      viewportRef.current.render();
-    }
-  }, [rotation]);
-
   const handlePresetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setPreset(event.target.value);
   };
 
-  const handleRandomRotation = () => {
-    setRotation(Math.random() * 360);
-  };
 
   return (
     <div className="h-full">
       <div id="demo-title" className='' />
       <div id="demo-description" />
       <div className="mb-4">
-        <button onClick={handleRandomRotation} className="mr-4">
-          Apply Random Rotation
-        </button>
         <select name="preset" title="Presets" value={preset} onChange={handlePresetChange}>
           <option value="CT-Bone">CT-Bone</option>
           <option value="CT-Bones">CT-Bones</option>
