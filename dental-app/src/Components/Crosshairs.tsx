@@ -109,14 +109,14 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       },
     });
 
-    addToggleButtonToToolbar({
-      id: 'syncSlabThickness',
-      title: 'Sync Slab Thickness',
-      defaultToggle: false,
-      onClick: (toggle: boolean) => {
-        synchronizer.setEnabled(toggle);
-      },
-    });
+    // addToggleButtonToToolbar({
+    //   id: 'syncSlabThickness',
+    //   title: 'Sync Slab Thickness',
+    //   defaultToggle: false,
+    //   onClick: (toggle: boolean) => {
+    //     synchronizer.setEnabled(toggle);
+    //   },
+    // });
 
     // Add Pan button with icon and tooltip text on hover.
     addButtonToToolbar({
@@ -169,7 +169,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         });
       },
     });
-    
+
     // Add Crosshairs button
     addButtonToToolbar({
       icon: <FaCrosshairs className="w-6 h-6 text-white hover:underline hover:opacity-80"/>,
