@@ -67,48 +67,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     if (toolbar) {
       toolbar.innerHTML = '';
     }
-    addDropdownToToolbar({
-      options: {
-        values: [
-          'Maximum Intensity Projection',
-          'Minimum Intensity Projection',
-          'Average Intensity Projection',
-        ],
-        defaultValue: 'Maximum Intensity Projection',
-      },
-      onSelectedValueChange: (selectedValue: string) => {
-        let blendModeToUse;
-        switch (selectedValue) {
-          case 'Maximum Intensity Projection':
-            blendModeToUse = Enums.BlendModes.MAXIMUM_INTENSITY_BLEND;
-            break;
-          case 'Minimum Intensity Projection':
-            blendModeToUse = Enums.BlendModes.MINIMUM_INTENSITY_BLEND;
-            break;
-          case 'Average Intensity Projection':
-            blendModeToUse = Enums.BlendModes.AVERAGE_INTENSITY_BLEND;
-            break;
-          default:
-            throw new Error('Undefined blend mode');
-        }
-        const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-        const crosshairsInstance = toolGroup.getToolInstance(CrosshairsTool.toolName);
-        const oldConfig = crosshairsInstance.configuration;
-
-        crosshairsInstance.configuration = {
-          ...oldConfig,
-          slabThicknessBlendMode: blendModeToUse,
-        };
-
-        toolGroup.viewportsInfo.forEach(({ viewportId, renderingEngineId }) => {
-          const engine = getRenderingEngine(renderingEngineId);
-          const viewport = engine.getViewport(viewportId) as Types.IVolumeViewport;
-          viewport.setBlendMode(blendModeToUse);
-          viewport.render();
-        });
-      },
-    });
-
+  
     // addToggleButtonToToolbar({
     //   id: 'syncSlabThickness',
     //   title: 'Sync Slab Thickness',
@@ -166,6 +125,48 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
             toolGroup.setToolDisabled(ZoomTool.toolName);
           }
           return newActive;
+        });
+      },
+    });
+
+    addDropdownToToolbar({
+      options: {
+        values: [
+          'Maximum Intensity Projection',
+          'Minimum Intensity Projection',
+          'Average Intensity Projection',
+        ],
+        defaultValue: 'Maximum Intensity Projection',
+      },
+      onSelectedValueChange: (selectedValue: string) => {
+        let blendModeToUse;
+        switch (selectedValue) {
+          case 'Maximum Intensity Projection':
+            blendModeToUse = Enums.BlendModes.MAXIMUM_INTENSITY_BLEND;
+            break;
+          case 'Minimum Intensity Projection':
+            blendModeToUse = Enums.BlendModes.MINIMUM_INTENSITY_BLEND;
+            break;
+          case 'Average Intensity Projection':
+            blendModeToUse = Enums.BlendModes.AVERAGE_INTENSITY_BLEND;
+            break;
+          default:
+            throw new Error('Undefined blend mode');
+        }
+        const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+        const crosshairsInstance = toolGroup.getToolInstance(CrosshairsTool.toolName);
+        const oldConfig = crosshairsInstance.configuration;
+
+        crosshairsInstance.configuration = {
+          ...oldConfig,
+          slabThicknessBlendMode: blendModeToUse,
+        };
+
+        toolGroup.viewportsInfo.forEach(({ viewportId, renderingEngineId }) => {
+          const engine = getRenderingEngine(renderingEngineId);
+          const viewport = engine.getViewport(viewportId) as Types.IVolumeViewport;
+          viewport.setBlendMode(blendModeToUse);
+          viewport.render();
         });
       },
     });
