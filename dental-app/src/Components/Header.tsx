@@ -5,7 +5,10 @@ interface HeaderProps {
   setPreset: (preset: string) => void;
 }
 
-const Header: React.FC = () => {
+const Header: React.FC<HeaderProps> = ({ preset, setPreset }) => {
+  const handlePresetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setPreset(event.target.value);
+  };
     return (
 <header className='relative bg-[#041C4A] h-[50px]'>
   <div className='container mx-auto flex items-center justify-start h-full px-4'>
@@ -20,11 +23,22 @@ const Header: React.FC = () => {
   </div>
 
   {/* Absolutely centered toolbar */}
-  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+  <nav className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
     <div id="demo-toolbar" className="flex gap-4 items-center text-white">
       {/* Toolbar content goes here */}
     </div>
-  </div>
+    <select
+      name="preset"
+      title="Presets"
+      value={preset}
+      onChange={handlePresetChange}
+      className="p-2 rounded bg-gray-700 text-white"
+    >
+      <option value="CT-Bone">CT-Bone</option>
+      <option value="CT-Bones">CT-Bones</option>
+    </select>
+  </nav>
+
 </header>
 
     );
