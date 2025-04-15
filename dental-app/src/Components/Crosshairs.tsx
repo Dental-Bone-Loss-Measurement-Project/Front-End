@@ -175,7 +175,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
             setIsCrosshairsActive(false);
             
             toolGroup.setToolActive(ZoomTool.toolName, {
-              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }],
+              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
             });
           } else {
             toolGroup.setToolDisabled(ZoomTool.toolName);
