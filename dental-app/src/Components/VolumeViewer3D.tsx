@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+// VolumeViewer3D.tsx
+import React, { useEffect, useRef } from 'react';
 import {
   CONSTANTS,
   Enums,
@@ -15,7 +16,7 @@ import {
 } from '../../utils/demo/helpers';
 import { RGB } from '@cornerstonejs/core/types';
 
-const { ToolGroupManager, Enums: csToolsEnums } = cornerstoneTools;
+const { ToolGroupManager } = cornerstoneTools;
 const { ViewportType } = Enums;
 
 const volumeName = 'CT_VOLUME_ID';
@@ -25,13 +26,14 @@ const renderingEngineId = 'myRenderingEngine';
 const viewportId = '3D_VIEWPORT';
 const toolGroupId = 'TOOL_GROUP_ID';
 
-const VolumeViewer3D: React.FC = () => {
+interface VolumeViewer3DProps {
+  preset: string;
+}
+
+const VolumeViewer3D: React.FC<VolumeViewer3DProps> = ({ preset }) => {
   const elementRef = useRef<HTMLDivElement>(null);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const viewportRef = useRef<Types.IVolumeViewport | null>(null);
-  
-  // Default preset is CT-Bone
-  const [preset, setPreset] = useState<string>('CT-Bone');
 
   useEffect(() => {
     const initialize = async () => {
@@ -76,6 +78,7 @@ const VolumeViewer3D: React.FC = () => {
         [viewportId]
       );
 
+      // Use the preset from props when initializing
       viewportRef.current.setProperties({ preset });
       viewportRef.current.render();
     };
@@ -90,6 +93,7 @@ const VolumeViewer3D: React.FC = () => {
     };
   }, []);
 
+  // Listen for changes to the preset prop and update the viewport
   useEffect(() => {
     if (viewportRef.current) {
       viewportRef.current.setProperties({ preset });
@@ -97,22 +101,9 @@ const VolumeViewer3D: React.FC = () => {
     }
   }, [preset]);
 
-  const handlePresetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setPreset(event.target.value);
-  };
-
-
   return (
     <div className="h-full">
-      <div id="demo-title" className='' />
-      <div id="demo-description" />
-      <div className="mb-4">
-        <select name="preset" title="Presets" value={preset} onChange={handlePresetChange}>
-          <option value="CT-Bone">CT-Bone</option>
-          <option value="CT-Bones">CT-Bones</option>
-        </select>
-      </div>
-      {/* This container now takes full width and height of its parent */}
+      {/* Container takes full width and height */}
       <div
         ref={elementRef}
         className="w-full h-full relative"
@@ -123,3 +114,4 @@ const VolumeViewer3D: React.FC = () => {
 };
 
 export default VolumeViewer3D;
+

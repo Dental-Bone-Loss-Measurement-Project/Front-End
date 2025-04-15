@@ -1,7 +1,10 @@
 import { FiUpload, FiImage } from "react-icons/fi";
+import { useNavigate } from 'react-router-dom';
 import "./sidebar.css";
 
 export function SideBar() {
+  const navigate = useNavigate();
+
   return (
     <div className="sidebar sidebar-open">
       <nav className="sidebar-nav">
@@ -10,7 +13,10 @@ export function SideBar() {
           <span>Upload</span>
         </button>
 
-        <button onClick={() => alert("Convert to Panorama clicked")} className="sidebar-btn">
+        <button
+          onClick={() => navigate('/convert')}
+          className="sidebar-btn"
+        >
           <FiImage size={24} />
           <span>Convert to Panorama</span>
         </button>

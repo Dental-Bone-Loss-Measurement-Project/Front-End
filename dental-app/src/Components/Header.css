@@ -1,0 +1,24 @@
+#demo-toolbar button {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    padding: 0.5rem;
+    transition: color 0.2s ease, background-color 0.2s ease;
+  }
+  
+  #demo-toolbar button:hover {
+    /* Underline or highlight effect on hover */
+    text-decoration: underline;
+    color: #ffffff;
+  }
+  
+  #demo-toolbar button.active,
+  #demo-toolbar button:active {
+    background-color: #3b82f6; /* blue-500 */
+    color: #ffffff;
+  }
+  
+  /* If using an icon, you may want to restrict font size, etc. */
+  #demo-toolbar button .icon-reset {
+    font-size: 1.5rem; /* Or any size you prefer */
+  }
