@@ -12,10 +12,11 @@ import { init as csRenderInit } from "@cornerstonejs/core";
 import { init as csToolsInit } from "@cornerstonejs/tools";
 import { init as dicomImageLoaderInit } from "@cornerstonejs/dicom-image-loader";
 import * as cornerstoneTools from '@cornerstonejs/tools';
-import { FaSyncAlt } from 'react-icons/fa';
+import { FaCrosshairs } from 'react-icons/fa';
+import { CiSearch } from "react-icons/ci";
+import { GrPowerReset, GrPan } from "react-icons/gr";
 
 // Import the GrPan icon and tools
-import { GrPan } from "react-icons/gr";
 import { PanTool, CrosshairsTool, ZoomTool } from '@cornerstonejs/tools';
 
 // Helper functions from your demo helpers
@@ -67,20 +68,57 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       toolbar.innerHTML = '';
     }
 
+        // Add Pan button with icon and tooltip text on hover.
+        addButtonToToolbar({
+          icon: <GrPan className="w-6 h-6 text-white hover:underline hover:opacity-80"/>,
+          onClick: () => {
+            setIsPanActive((prev) => {
+              const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+              const newActive = !prev;
+              
+              if (newActive) {
+                // Disable competing tools
+                toolGroup.setToolDisabled(ZoomTool.toolName);
+                toolGroup.setToolDisabled(CrosshairsTool.toolName);
+                setIsZoomActive(false);
+                setIsCrosshairsActive(false);
+                
+                toolGroup.setToolActive(PanTool.toolName, {
+                  bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
+                });
+              } else {
+                toolGroup.setToolDisabled(PanTool.toolName);
+              }
+              return newActive;
+            });
+          },
+        });
+
+            // Add Zoom button
     addButtonToToolbar({
-        icon: <FaSyncAlt className="w-6 h-6 text-white hover:underline hover:opacity-80" />,
-        className: "flex items-center gap-2 bg-transparent border-0 text-white p-2 transition hover:underline hover:text-blue-400",
-        onClick: () => {
-          const viewport = getRenderingEngine(renderingEngineId).getViewport(axialViewportId) as Types.IVolumeViewport;
-          viewport.resetCamera({
-            resetPan: true,
-            resetZoom: true,
-            resetToCenter: true,
-            resetRotation: true,
-          });
-          viewport.render();
-        },
-      });
+      icon: <CiSearch className="w-6 h-6 text-white hover:underline hover:opacity-80"/>,
+      onClick: () => {
+        setIsZoomActive((prev) => {
+          const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+          const newActive = !prev;
+          
+          if (newActive) {
+            // Disable competing tools
+            toolGroup.setToolDisabled(PanTool.toolName);
+            toolGroup.setToolDisabled(CrosshairsTool.toolName);
+            setIsPanActive(false);
+            setIsCrosshairsActive(false);
+            
+            toolGroup.setToolActive(ZoomTool.toolName, {
+              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }],
+            });
+          } else {
+            toolGroup.setToolDisabled(ZoomTool.toolName);
+          }
+          return newActive;
+        });
+      },
+    });
 
     addDropdownToToolbar({
       options: {
@@ -132,62 +170,10 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         synchronizer.setEnabled(toggle);
       },
     });
-
-    // Add Pan button with icon and tooltip text on hover.
-    addButtonToToolbar({
-      icon: <GrPan className="w-6 h-6 text-white hover:underline hover:opacity-80"/>,
-      onClick: () => {
-        setIsPanActive((prev) => {
-          const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-          const newActive = !prev;
-          
-          if (newActive) {
-            // Disable competing tools
-            toolGroup.setToolDisabled(ZoomTool.toolName);
-            toolGroup.setToolDisabled(CrosshairsTool.toolName);
-            setIsZoomActive(false);
-            setIsCrosshairsActive(false);
-            
-            toolGroup.setToolActive(PanTool.toolName, {
-              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
-            });
-          } else {
-            toolGroup.setToolDisabled(PanTool.toolName);
-          }
-          return newActive;
-        });
-      },
-    });
-
-    // Add Zoom button
-    addButtonToToolbar({
-      title: 'Zoom',
-      onClick: () => {
-        setIsZoomActive((prev) => {
-          const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-          const newActive = !prev;
-          
-          if (newActive) {
-            // Disable competing tools
-            toolGroup.setToolDisabled(PanTool.toolName);
-            toolGroup.setToolDisabled(CrosshairsTool.toolName);
-            setIsPanActive(false);
-            setIsCrosshairsActive(false);
-            
-            toolGroup.setToolActive(ZoomTool.toolName, {
-              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }],
-            });
-          } else {
-            toolGroup.setToolDisabled(ZoomTool.toolName);
-          }
-          return newActive;
-        });
-      },
-    });
     
     // Add Crosshairs button
     addButtonToToolbar({
-      title: 'Crosshairs',
+      icon: <FaCrosshairs className="w-6 h-6 text-white hover:underline hover:opacity-80"/>,
       onClick: () => {
         setIsCrosshairsActive((prev) => {
           const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
@@ -208,6 +194,20 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           }
           return newActive;
         });
+      },
+    });
+    addButtonToToolbar({
+      icon: <GrPowerReset className="w-6 h-6 text-white hover:underline hover:opacity-80" />,
+      className: "flex items-center gap-2 bg-transparent border-0 text-white p-2 transition hover:underline hover:text-blue-400",
+      onClick: () => {
+        const viewport = getRenderingEngine(renderingEngineId).getViewport(axialViewportId) as Types.IVolumeViewport;
+        viewport.resetCamera({
+          resetPan: true,
+          resetZoom: true,
+          resetToCenter: true,
+          resetRotation: true,
+        });
+        viewport.render();
       },
     });
   }, []);
