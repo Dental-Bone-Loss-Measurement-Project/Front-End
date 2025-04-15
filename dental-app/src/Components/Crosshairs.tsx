@@ -170,6 +170,58 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         synchronizer.setEnabled(toggle);
       },
     });
+
+    // Add Pan button with icon and tooltip text on hover.
+    addButtonToToolbar({
+      icon: <GrPan className="w-6 h-6 text-white hover:underline hover:opacity-80"/>,
+      onClick: () => {
+        setIsPanActive((prev) => {
+          const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+          const newActive = !prev;
+          
+          if (newActive) {
+            // Disable competing tools
+            toolGroup.setToolDisabled(ZoomTool.toolName);
+            toolGroup.setToolDisabled(CrosshairsTool.toolName);
+            setIsZoomActive(false);
+            setIsCrosshairsActive(false);
+            
+            toolGroup.setToolActive(PanTool.toolName, {
+              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
+            });
+          } else {
+            toolGroup.setToolDisabled(PanTool.toolName);
+          }
+          return newActive;
+        });
+      },
+    });
+
+    // Add Zoom button
+    addButtonToToolbar({
+      title: 'Zoom',
+      onClick: () => {
+        setIsZoomActive((prev) => {
+          const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+          const newActive = !prev;
+          
+          if (newActive) {
+            // Disable competing tools
+            toolGroup.setToolDisabled(PanTool.toolName);
+            toolGroup.setToolDisabled(CrosshairsTool.toolName);
+            setIsPanActive(false);
+            setIsCrosshairsActive(false);
+            
+            toolGroup.setToolActive(ZoomTool.toolName, {
+              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
+            });
+          } else {
+            toolGroup.setToolDisabled(ZoomTool.toolName);
+          }
+          return newActive;
+        });
+      },
+    });
     
     // Add Crosshairs button
     addButtonToToolbar({
