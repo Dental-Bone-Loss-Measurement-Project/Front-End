@@ -13,9 +13,9 @@ import { init as csToolsInit } from "@cornerstonejs/tools";
 import { init as dicomImageLoaderInit } from "@cornerstonejs/dicom-image-loader";
 import * as cornerstoneTools from '@cornerstonejs/tools';
 
-// Import the GrPan icon and PanTool
+// Import the GrPan icon and tools
 import { GrPan } from "react-icons/gr";
-import { PanTool, CrosshairsTool } from '@cornerstonejs/tools';
+import { PanTool, CrosshairsTool, ZoomTool } from '@cornerstonejs/tools';
 
 // Helper functions
 import {
@@ -46,6 +46,8 @@ const viewportSizewidth = '530px';
 const CrossHairs = () => {
   const [isPanActive, setIsPanActive] = useState(false);
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
+  const [isZoomActive, setIsZoomActive] = useState(false);
+  
   // Refs for the viewports
   const running = useRef(false);
   const axialViewportElementRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,7 @@ const CrossHairs = () => {
 
     // Add Reset Camera button
     addButtonToToolbar({
-      title: 'Reset Camera',
+      title: 'Reset Camera', // Tooltip will show "Reset Camera" on hover
       onClick: () => {
         const viewport = getRenderingEngine(renderingEngineId).getViewport(
           axialViewportId
@@ -131,42 +133,81 @@ const CrossHairs = () => {
       },
     });
 
+    // Add Pan button with icon and tooltip text on hover.
     addButtonToToolbar({
-      title: 'Pan',
-      icon: <GrPan />,
+      title: 'Pan',  // This text will be used as the tooltip.
+      icon: <GrPan />, // Only the icon is rendered on the button.
       onClick: () => {
         setIsPanActive((prev) => {
           const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-
-          if (!prev) {
+          const newActive = !prev;
+          
+          if (newActive) {
+            // Disable competing tools
+            toolGroup.setToolDisabled(ZoomTool.toolName);
+            toolGroup.setToolDisabled(CrosshairsTool.toolName);
+            setIsZoomActive(false);
+            setIsCrosshairsActive(false);
+            
             toolGroup.setToolActive(PanTool.toolName, {
               bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
             });
           } else {
             toolGroup.setToolDisabled(PanTool.toolName);
           }
+          return newActive;
+        });
+      },
+    });
 
-          return !prev;
+    // Add Zoom button
+    addButtonToToolbar({
+      title: 'Zoom',
+      onClick: () => {
+        setIsZoomActive((prev) => {
+          const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+          const newActive = !prev;
+          
+          if (newActive) {
+            // Disable competing tools
+            toolGroup.setToolDisabled(PanTool.toolName);
+            toolGroup.setToolDisabled(CrosshairsTool.toolName);
+            setIsPanActive(false);
+            setIsCrosshairsActive(false);
+            
+            toolGroup.setToolActive(ZoomTool.toolName, {
+              bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }],
+            });
+          } else {
+            toolGroup.setToolDisabled(ZoomTool.toolName);
+          }
+          return newActive;
         });
       },
     });
     
-    // Add Crosshairs button to toggle the crosshairs tool
+    // Add Crosshairs button
     addButtonToToolbar({
       title: 'Crosshairs',
       onClick: () => {
         setIsCrosshairsActive((prev) => {
           const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-          if (!prev) {
-            // Activate the Crosshairs tool
+          const newActive = !prev;
+          
+          if (newActive) {
+            // Disable competing tools
+            toolGroup.setToolDisabled(PanTool.toolName);
+            toolGroup.setToolDisabled(ZoomTool.toolName);
+            setIsPanActive(false);
+            setIsZoomActive(false);
+            
             toolGroup.setToolActive(CrosshairsTool.toolName, {
               bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
             });
           } else {
-            // Disable the Crosshairs tool
             toolGroup.setToolDisabled(CrosshairsTool.toolName);
           }
-          return !prev;
+          return newActive;
         });
       },
     });
@@ -228,10 +269,7 @@ const CrossHairs = () => {
   // Set up the rendering engine, viewports, and tools
   useEffect(() => {
     const setup = async () => {
-      // Prevent re-initialization
-      if (running.current) {
-        return;
-      }
+      if (running.current) return;
       running.current = true;
 
       // Initialize Cornerstone libraries
@@ -239,9 +277,10 @@ const CrossHairs = () => {
       csToolsInit();
       dicomImageLoaderInit({ maxWebWorkers: 1 });
 
-      // Register the tools if not already done
+      // Register tools
       cornerstoneTools.addTool(CrosshairsTool);
       cornerstoneTools.addTool(PanTool);
+      cornerstoneTools.addTool(ZoomTool);
 
       // Load imageIds and cache metadata
       const imageIds = await createImageIdsAndCacheMetaData({
@@ -255,7 +294,7 @@ const CrossHairs = () => {
       // Create the volume
       const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds });
 
-      // Initialize the rendering engine
+      // Initialize rendering engine
       const renderingEngine = new RenderingEngine(renderingEngineId);
 
       const viewportInputArray = [
@@ -290,7 +329,7 @@ const CrossHairs = () => {
 
       renderingEngine.setViewports(viewportInputArray);
 
-      // Load the volume and set it for each viewport
+      // Load volume and set viewports
       volume.load();
       await setVolumesForViewports(
         renderingEngine,
@@ -298,16 +337,16 @@ const CrossHairs = () => {
         [axialViewportId, sagittalViewportId, coronalViewportId]
       );
 
-      // Setup tool group and add bindings
+      // Setup tool group
       const toolGroup = cornerstoneTools.ToolGroupManager.createToolGroup(toolGroupId);
       addManipulationBindings(toolGroup);
 
-      // Add viewports to the tool group
+      // Add viewports to tool group
       toolGroup.addViewport(axialViewportId, renderingEngineId);
       toolGroup.addViewport(sagittalViewportId, renderingEngineId);
       toolGroup.addViewport(coronalViewportId, renderingEngineId);
 
-      // Add Crosshairs tool with configuration for each viewport
+      // Configure Crosshairs tool
       const isMobile = window.matchMedia('(any-pointer:coarse)').matches;
       toolGroup.addTool(CrosshairsTool.toolName, {
         getReferenceLineColor,
@@ -321,10 +360,7 @@ const CrossHairs = () => {
         },
       });
 
-      // Note: Do not activate the Crosshairs tool here.
-      // It will be activated only when the Crosshairs button in the toolbar is clicked.
-
-      // Set up synchronizers and render the viewports
+      // Set up synchronizers
       setUpSynchronizers();
       renderingEngine.renderViewports(viewportIds);
     };
@@ -339,7 +375,6 @@ const CrossHairs = () => {
     running,
   ]);
 
-  // Render the 3D volume and the viewports
   return (
     <div className="flex flex-col items-center space-y-8">
       <div className="flex flex-col items-center">
