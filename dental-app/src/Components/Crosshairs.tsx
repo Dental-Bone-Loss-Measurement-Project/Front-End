@@ -12,7 +12,7 @@ import { init as csRenderInit } from "@cornerstonejs/core";
 import { init as csToolsInit } from "@cornerstonejs/tools";
 import { init as dicomImageLoaderInit } from "@cornerstonejs/dicom-image-loader";
 import * as cornerstoneTools from '@cornerstonejs/tools';
-import { FaCrosshairs } from 'react-icons/fa';
+import { FaCrosshairs, FaCamera } from 'react-icons/fa';
 import { CiSearch } from "react-icons/ci";
 import { GrPowerReset, GrPan } from "react-icons/gr";
 
