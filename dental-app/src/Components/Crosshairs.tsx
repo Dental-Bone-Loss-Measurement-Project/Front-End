@@ -94,20 +94,20 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       alert('Please select a viewport first.');
       return;
     }
-  
+
     const renderingEngine = getRenderingEngine(renderingEngineId);
     if (!renderingEngine) return;
-  
+
     const viewport = renderingEngine.getViewport(currentViewportId) as Types.IVolumeViewport;
     if (!viewport) return;
-  
+
     // Get current camera properties
     const camera = viewport.getCamera();
     const { viewUp, viewPlaneNormal } = camera;
-  
+
     // Create rotation matrix based on viewport orientation
     let rotationAxis: Types.Point3 = [0, 0, 0];
-    
+
     // Determine rotation axis based on viewport type
     switch (currentViewportId) {
       case axialViewportId:
@@ -120,15 +120,15 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         rotationAxis = [0, 1, 0]; // Rotate around Y-axis for coronal
         break;
     }
-  
+
     // Create rotation matrix
     const rotationMatrix = mat4.create();
     mat4.fromRotation(rotationMatrix, degrees * (Math.PI / 180), rotationAxis);
-  
+
     // Apply rotation to viewUp vector
     const rotatedViewUp = vec3.create();
     vec3.transformMat4(rotatedViewUp, viewUp, rotationMatrix);
-  
+
     // Update camera with new rotation
     viewport.setCamera({
       ...camera,
@@ -136,7 +136,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     });
     viewport.render();
   };
-  
+
   useEffect(() => {
     const toolbar = document.getElementById('demo-toolbar');
     if (toolbar) toolbar.innerHTML = '';
@@ -444,61 +444,61 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
 
   return (
     <div className="flex flex-col h-screen">
-  <div className="flex-1 p-1">
-    <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
-      <div
-        className="relative border border-blue-500/50 overflow-hidden"
-      >
-        <VolumeViewer3D preset={preset} />
-      </div>
-      <div
-        ref={axialViewportElementRef}
-        onClick={() => setActiveViewportId(axialViewportId)}
-        className={`
+      <div className="flex-1 p-1">
+        <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
+          <div
+            className="relative border border-blue-500/50 overflow-hidden"
+          >
+            <VolumeViewer3D preset={preset} />
+          </div>
+          <div
+            ref={axialViewportElementRef}
+            onClick={() => setActiveViewportId(axialViewportId)}
+            className={`
           relative
           overflow-hidden
           cursor-pointer
           transition-all
           duration-200
           ${activeViewportId === axialViewportId
-            ? 'border-4 border-blue-500'
-            : 'border border-blue-500/50'
-          }
+                ? 'border-4 border-blue-500'
+                : 'border border-blue-500/50'
+              }
         `}
-      />
-      <div
-        ref={sagittalViewportElementRef}
-        onClick={() => setActiveViewportId(sagittalViewportId)}
-        className={`
+          />
+          <div
+            ref={sagittalViewportElementRef}
+            onClick={() => setActiveViewportId(sagittalViewportId)}
+            className={`
           relative
           overflow-hidden
           cursor-pointer
           transition-all
           duration-200
           ${activeViewportId === sagittalViewportId
-            ? 'border-4 border-blue-500'
-            : 'border border-blue-500/50'
-          }
+                ? 'border-4 border-blue-500'
+                : 'border border-blue-500/50'
+              }
         `}
-      />
-      <div
-        ref={coronalViewportElementRef}
-        onClick={() => setActiveViewportId(coronalViewportId)}
-        className={`
+          />
+          <div
+            ref={coronalViewportElementRef}
+            onClick={() => setActiveViewportId(coronalViewportId)}
+            className={`
           relative
           overflow-hidden
           cursor-pointer
           transition-all
           duration-200
           ${activeViewportId === coronalViewportId
-            ? 'border-4 border-blue-500'
-            : 'border border-blue-500/50'
-          }
+                ? 'border-4 border-blue-500'
+                : 'border border-blue-500/50'
+              }
         `}
-      />
+          />
+        </div>
+      </div>
     </div>
-  </div>
-</div>
   );
 };
 
