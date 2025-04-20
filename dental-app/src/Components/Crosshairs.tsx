@@ -15,6 +15,7 @@ import * as cornerstoneTools from '@cornerstonejs/tools';
 import { FaCrosshairs, FaCamera } from 'react-icons/fa';
 import { CiSearch } from "react-icons/ci";
 import { GrPowerReset, GrPan } from "react-icons/gr";
+import { AiOutlineRotateRight } from "react-icons/ai";
 import { PanTool, CrosshairsTool, ZoomTool } from '@cornerstonejs/tools';
 import {
   createImageIdsAndCacheMetaData,
@@ -25,6 +26,7 @@ import {
   getLocalUrl,
 } from '../../utils/demo/helpers';
 import VolumeViewer3D from "./VolumeViewer3D";
+import { vec3, mat4 } from 'gl-matrix';
 
 const volumeName = 'VOLUME_ID';
 const volumeLoaderScheme = 'cornerstoneStreamingImageVolume';
@@ -86,12 +88,61 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     };
   }, []);
 
+  const rotateViewport = (degrees: number) => {
+    const currentViewportId = activeViewportIdRef.current;
+    if (!currentViewportId) {
+      alert('Please select a viewport first.');
+      return;
+    }
+  
+    const renderingEngine = getRenderingEngine(renderingEngineId);
+    if (!renderingEngine) return;
+  
+    const viewport = renderingEngine.getViewport(currentViewportId) as Types.IVolumeViewport;
+    if (!viewport) return;
+  
+    // Get current camera properties
+    const camera = viewport.getCamera();
+    const { viewUp, viewPlaneNormal } = camera;
+  
+    // Create rotation matrix based on viewport orientation
+    let rotationAxis: Types.Point3 = [0, 0, 0];
+    
+    // Determine rotation axis based on viewport type
+    switch (currentViewportId) {
+      case axialViewportId:
+        rotationAxis = [0, 0, 1]; // Rotate around Z-axis for axial
+        break;
+      case sagittalViewportId:
+        rotationAxis = [1, 0, 0]; // Rotate around X-axis for sagittal
+        break;
+      case coronalViewportId:
+        rotationAxis = [0, 1, 0]; // Rotate around Y-axis for coronal
+        break;
+    }
+  
+    // Create rotation matrix
+    const rotationMatrix = mat4.create();
+    mat4.fromRotation(rotationMatrix, degrees * (Math.PI / 180), rotationAxis);
+  
+    // Apply rotation to viewUp vector
+    const rotatedViewUp = vec3.create();
+    vec3.transformMat4(rotatedViewUp, viewUp, rotationMatrix);
+  
+    // Update camera with new rotation
+    viewport.setCamera({
+      ...camera,
+      viewUp: rotatedViewUp as Types.Point3,
+    });
+    viewport.render();
+  };
+  
   useEffect(() => {
     const toolbar = document.getElementById('demo-toolbar');
     if (toolbar) toolbar.innerHTML = '';
 
     addButtonToToolbar({
-      icon: <GrPan className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" />,
+      icon: <GrPan className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Pan Tool" />,
       onClick: () => {
         setIsPanActive((prev) => {
           const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
@@ -115,7 +166,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     });
 
     addButtonToToolbar({
-      icon: <CiSearch className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" />,
+      icon: <CiSearch className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Zoom Tool" />,
       onClick: () => {
         setIsZoomActive((prev) => {
           const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
@@ -181,7 +232,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     });
 
     addButtonToToolbar({
-      icon: <FaCamera className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" />,
+      icon: <FaCamera className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Capture Screenshot" />,
       onClick: () => {
         const currentViewportId = activeViewportIdRef.current;
         if (!currentViewportId) {
@@ -216,7 +267,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     });
 
     addButtonToToolbar({
-      icon: <FaCrosshairs className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" />,
+      icon: <FaCrosshairs className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Crosshairs Tool" />,
       onClick: () => {
         setIsCrosshairsActive((prev) => {
           const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
@@ -240,7 +291,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     });
 
     addButtonToToolbar({
-      icon: <GrPowerReset className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" />,
+      icon: <GrPowerReset className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Reset View" />,
       className: "flex items-center gap-2 bg-transparent border-0 text-white p-2 transition hover:underline hover:text-blue-400",
       onClick: () => {
         const viewport = getRenderingEngine(renderingEngineId).getViewport(axialViewportId) as Types.IVolumeViewport;
@@ -252,6 +303,11 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         });
         viewport.render();
       },
+    });
+
+    addButtonToToolbar({
+      icon: <AiOutlineRotateRight className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Rotate View" />,
+      onClick: () => rotateViewport(90),
     });
   }, []);
 
@@ -387,66 +443,62 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
   ]);
 
   return (
-    <div className="flex flex-col items-center space-y-8">
-      <div className="flex flex-col items-center">
-        <div className="grid grid-cols-2 gap-4">
-          <div
-            className="relative border border-blue-500/50 overflow-hidden"
-            style={{ width: viewportSizewidth, height: viewportSizeheight }}
-          >
-            <VolumeViewer3D preset={preset} />
-          </div>
-          <div
-            ref={axialViewportElementRef}
-            onClick={() => setActiveViewportId(axialViewportId)}
-            className={`
-              relative
-              overflow-hidden
-              cursor-pointer
-              transition-all         
-              duration-200     
-              ${activeViewportId === axialViewportId
-                ? 'border-4 border-blue-500'       /* thick blue when active */
-                : 'border border-blue-500/50'       /* thin faded when inactive */
-              }
-            `}
-            style={{ width: viewportSizewidth, height: viewportSizeheight }}
-          />
-          <div
-            ref={sagittalViewportElementRef}
-            onClick={() => setActiveViewportId(sagittalViewportId)}
-            className={`
-              relative
-              overflow-hidden
-              cursor-pointer
-              transition-all         
-              duration-200     
-              ${activeViewportId === sagittalViewportId
-                ? 'border-4 border-blue-500'       /* thick blue when active */
-                : 'border border-blue-500/50'       /* thin faded when inactive */
-              }
-            `}
-            style={{ width: viewportSizewidth, height: viewportSizeheight }}
-          />
-          <div
-            ref={coronalViewportElementRef}
-            onClick={() => setActiveViewportId(coronalViewportId)}
-            className={`
-              relative
-              overflow-hidden
-              cursor-pointer
-              transition-all         
-              duration-200     
-              ${activeViewportId === coronalViewportId
-                ? 'border-4 border-blue-500'       /* thick blue when active */
-                : 'border border-blue-500/50'       /* thin faded when inactive */
-              }
-            `}
-            style={{ width: viewportSizewidth, height: viewportSizeheight }}
-          />
-        </div>
+    <div className="flex flex-col h-screen">
+  <div className="flex-1 p-1">
+    <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
+      <div
+        className="relative border border-blue-500/50 overflow-hidden"
+      >
+        <VolumeViewer3D preset={preset} />
       </div>
+      <div
+        ref={axialViewportElementRef}
+        onClick={() => setActiveViewportId(axialViewportId)}
+        className={`
+          relative
+          overflow-hidden
+          cursor-pointer
+          transition-all
+          duration-200
+          ${activeViewportId === axialViewportId
+            ? 'border-4 border-blue-500'
+            : 'border border-blue-500/50'
+          }
+        `}
+      />
+      <div
+        ref={sagittalViewportElementRef}
+        onClick={() => setActiveViewportId(sagittalViewportId)}
+        className={`
+          relative
+          overflow-hidden
+          cursor-pointer
+          transition-all
+          duration-200
+          ${activeViewportId === sagittalViewportId
+            ? 'border-4 border-blue-500'
+            : 'border border-blue-500/50'
+          }
+        `}
+      />
+      <div
+        ref={coronalViewportElementRef}
+        onClick={() => setActiveViewportId(coronalViewportId)}
+        className={`
+          relative
+          overflow-hidden
+          cursor-pointer
+          transition-all
+          duration-200
+          ${activeViewportId === coronalViewportId
+            ? 'border-4 border-blue-500'
+            : 'border border-blue-500/50'
+          }
+        `}
+      />
     </div>
+  </div>
+</div>
   );
 };
 
