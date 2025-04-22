@@ -21,6 +21,7 @@ import panorama_extraction as pe
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+
 app = FastAPI()
 
 # Create directories for temporary uploads and static files
@@ -178,6 +179,45 @@ async def upload_image(file: UploadFile = File(...)):
             os.remove(temp_file_path)
 
     return JSONResponse(content=response_data)
+
+# --- NEW Endpoint for 3D Volume Upload ---
+# This endpoint handles uploading a 3D medical volume file directly.
+@app.post("/upload-volume")
+async def upload_volume(file: UploadFile = File(...)):
+    # Create unique filenames
+    temp_file_name = f"{uuid.uuid4()}_{file.filename}"
+    temp_file_path = os.path.join(UPLOAD_DIR, temp_file_name)
+    
+    # Generate output NIFTI filename
+    nifti_filename = f"{uuid.uuid4()}.nii.gz"
+    nifti_path = os.path.join(STATIC_DIR, nifti_filename)
+    
+    try:
+        # Save uploaded file temporarily
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Convert MHA to NIFTI using SimpleITK
+        image = sitk.ReadImage(temp_file_path)
+        sitk.WriteImage(image, nifti_path)
+        print(f"Converted MHA to NIFTI and saved at: {nifti_path}")
+        
+        # Construct the URL to the NIFTI file
+        volume_url = f"http://localhost:8000/static/{nifti_filename}"
+        
+        response_data = {
+            "volumeUrl": volume_url
+        }
+        return JSONResponse(content=response_data)
+    
+    except Exception as e:
+        print(f"Error processing volume file: {e}")
+        raise HTTPException(status_code=500, detail=f"Volume processing failed: {str(e)}")
+    
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
 
 # Run the FastAPI app with uvicorn when this file is executed directly
 if __name__ == "__main__":
