@@ -14,7 +14,7 @@ function App() {
     <Router>
       <div>
         <Header preset={preset} setPreset={setPreset} />
-        <div className="app-container flex" style={{ alignSelf: 'self-end', gap: '0.5em' }}>
+        <div className="app-container flex" style={{ alignSelf: 'self-end', gap: '0.1em' }}>
           <SideBar />
           <div className="flex-grow">
             <Routes>
