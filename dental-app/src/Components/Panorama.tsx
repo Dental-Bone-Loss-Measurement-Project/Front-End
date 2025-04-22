@@ -451,37 +451,42 @@ const PanoramaViewer: React.FC = () => {
   return (
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4">Panoramic Dental View</h1>
-
+  
+      {/* Updated file input & upload button styling */}
       <div className="mb-4">
         <input
           type="file"
-          accept=".mha,.nii,.dcm"
+          accept=".mha,.nii,.dcm,image/png,image/jpeg" // Accept medical and common image formats
           onChange={handleFileChange}
-          className="mb-2"
+          className="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
         />
         <button
           onClick={handleUpload}
           disabled={loading || !file}
-          className="bg-blue-500 text-white py-2 px-4 rounded ml-2"
+          className={`py-2 px-4 rounded text-white ${
+            loading || !file ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
+          }`}
         >
           {loading ? 'Processing...' : 'Upload and Process'}
         </button>
       </div>
-
+  
       {error && <p className="text-red-500 mt-2">{error}</p>}
-
+  
       {responseData && (
         <div className="mt-4">
           <p className="mb-2">
             <strong>CBCT Image Shape:</strong> {responseData.imageShape.join(', ')}
           </p>
-          
+  
           <div className="flex flex-wrap gap-2 my-2">
             {Object.values(tools).map((tool) => (
               <button
                 key={tool.name}
                 onClick={() => setCurrentTool(tool.name)}
-                className={`p-2 border rounded ${currentTool === tool.name ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+                className={`p-2 border rounded ${
+                  currentTool === tool.name ? 'bg-blue-500 text-white' : 'bg-gray-100'
+                }`}
                 title={tool.name}
               >
                 <span>{tool.icon}</span> {tool.name}
@@ -494,7 +499,7 @@ const PanoramaViewer: React.FC = () => {
             >
               🗑️ Clear All
             </button>
-            
+  
             {annotations.length > 0 && (
               <button
                 onClick={downloadImage}
@@ -505,16 +510,15 @@ const PanoramaViewer: React.FC = () => {
               </button>
             )}
           </div>
-          
+  
           {/* Canvas container */}
-          <div 
-            ref={containerRef} 
-            className="mt-2 border border-gray-300 rounded" 
+          <div
+            ref={containerRef}
+            className="mt-2 border border-gray-300 rounded"
             style={{ width: '100%', height: '500px', position: 'relative' }}
           >
-
-            <canvas 
-              ref={canvasRef} 
+            <canvas
+              ref={canvasRef}
               className="absolute top-0 left-0 w-full h-full"
               onMouseMove={handleMouseMove}
               onClick={handleCanvasClick}
@@ -530,6 +534,7 @@ const PanoramaViewer: React.FC = () => {
       )}
     </div>
   );
+  
 };
 
 export default PanoramaViewer;
