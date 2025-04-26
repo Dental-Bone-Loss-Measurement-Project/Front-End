@@ -46,4 +46,13 @@ export default defineConfig({
       external: ["@icr/polyseg-wasm"],
     },
   },
+  server: {
+    proxy: {
+      '/orthanc': {
+        target: 'http://localhost:8042',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/orthanc/, ''),
+      }
+    }
+  }
 })

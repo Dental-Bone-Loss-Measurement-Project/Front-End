@@ -1,10 +1,10 @@
 // App.tsx
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-
+import VolumeViewer3D from "./Components/VolumeViewer3D";
 import Header from "./Components/Header";
 import { SideBar } from "./Components/SideBar";
-import Crosshairs from "./Components/Crosshairs";
+// import Crosshairs from "./Components/Crosshairs";
 import ImageUpload from "./Components/Panorama"; // Adjust path if different
 
 function App() {
@@ -19,7 +19,7 @@ function App() {
           <div className="flex-grow">
             <Routes>
               {/* Home route with Crosshairs view */}
-              <Route path="/" element={<Crosshairs preset={preset} />} />
+              <Route path="/" element={<VolumeViewer3D preset={preset} />} />
 
               {/* Convert to Panorama page */}
               <Route path="/convert" element={<ImageUpload />} />
