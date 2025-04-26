@@ -7,6 +7,9 @@ import {
   volumeLoader,
   getRenderingEngine,
 } from '@cornerstonejs/core';
+// import { registerNIFTIImageLoader } from '@cornerstonejs/nifti-image-loader';
+// // import { niftiImageLoader } from '@cornerstonejs/nifti-image-loader';
+// import { niftiImageLoader } from '@cornerstonejs/nifti-image-loader/dist/cornerstoneNIFTIImageLoader';
 import type { Types } from '@cornerstonejs/core';
 import { init as csRenderInit } from "@cornerstonejs/core";
 import { init as csToolsInit } from "@cornerstonejs/tools";
@@ -16,6 +19,7 @@ import { FaCrosshairs, FaCamera } from 'react-icons/fa';
 import { CiSearch } from "react-icons/ci";
 import { GrPowerReset, GrPan } from "react-icons/gr";
 import { AiOutlineRotateRight } from "react-icons/ai";
+import { MdArrowDropDown } from "react-icons/md";
 import { PanTool, CrosshairsTool, ZoomTool } from '@cornerstonejs/tools';
 import {
   createImageIdsAndCacheMetaData,
@@ -45,6 +49,9 @@ const viewportSizewidth = '530px';
 interface CrosshairsProps {
   preset: string;
 }
+
+// Register loader globally
+// registerNIFTIImageLoader();
 
 const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
   const [isPanActive, setIsPanActive] = useState(false);
@@ -352,18 +359,20 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       csRenderInit();
       csToolsInit();
       dicomImageLoaderInit({ maxWebWorkers: 1 });
+      // niftiImageLoader.registerImageLoader();
 
       cornerstoneTools.addTool(CrosshairsTool);
       cornerstoneTools.addTool(PanTool);
       cornerstoneTools.addTool(ZoomTool);
 
-      const imageIds = await createImageIdsAndCacheMetaData({
-        StudyInstanceUID:
-          '1.3.6.1.4.1.14519.5.2.1.7009.2403.334240657131972136850343327463',
-        SeriesInstanceUID:
-          '1.3.6.1.4.1.14519.5.2.1.7009.2403.226151125820845824875394858561',
-        wadoRsRoot: getLocalUrl() || 'https://d14fa38qiwhyfd.cloudfront.net/dicomweb',
-      });
+      // Get the uploaded volume URL from localStorage
+      const volumeUrl = localStorage.getItem('volumeUrl');
+      if (!volumeUrl) {
+        console.error('No volume found. Please upload a volume first.');
+        return;
+      }
+
+      const imageIds = [`nifti:${volumeUrl}`];
 
       const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds });
 
@@ -442,6 +451,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     running,
   ]);
 
+
   return (
     <div className="flex flex-col h-screen">
       <div className="flex-1 p-1">
@@ -451,7 +461,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           >
             <VolumeViewer3D preset={preset} />
           </div>
-          <div
+          {/* <div
             ref={axialViewportElementRef}
             onClick={() => setActiveViewportId(axialViewportId)}
             className={`
@@ -495,7 +505,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
                 : 'border border-blue-500/50'
               }
         `}
-          />
+          /> */}
         </div>
       </div>
     </div>

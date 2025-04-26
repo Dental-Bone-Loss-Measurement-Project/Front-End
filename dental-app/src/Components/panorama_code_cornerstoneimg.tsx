@@ -257,7 +257,7 @@ const ImageUpload: React.FC = () => {
 
       // Register the custom image loader with Cornerstone's imageLoader module.
       // This tells Cornerstone to use `panoramaLoader` whenever it encounters an imageId starting with 'panorama:'.
-       imageLoader.registerImageLoader('panorama', panoramaLoader);
+      //  imageLoader.registerImageLoader('panorama', panoramaLoader);
       console.log('Image loading effect: Panorama image loader registered.');
 
 

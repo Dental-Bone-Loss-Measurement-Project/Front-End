@@ -1,5 +1,4 @@
-// VolumeViewer3D.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   CONSTANTS,
   Enums,
@@ -9,11 +8,8 @@ import {
   Types,
 } from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
-import {
-  addManipulationBindings,
-  createImageIdsAndCacheMetaData,
-  initDemo,
-} from '../../utils/demo/helpers';
+import { initDemo } from '../../utils/demo/helpers';
+import generateVolumePropsFromImageIds from '../../utils/demo/helpers/generateVolumePropsFromImageIds';
 import { RGB } from '@cornerstonejs/core/types';
 
 const { ToolGroupManager } = cornerstoneTools;
@@ -26,92 +22,179 @@ const renderingEngineId = 'myRenderingEngine';
 const viewportId = '3D_VIEWPORT';
 const toolGroupId = 'TOOL_GROUP_ID';
 
+// Orthanc server URL
+const ORTHANC_URL = process.env.REACT_APP_ORTHANC_URL || 'http://localhost:8042';
+const ORTHANC_WADO_CONFIG = {
+  wadoUriRoot: `${ORTHANC_URL}/wado`,
+  wadoRsRoot: `${ORTHANC_URL}/dicom-web`,
+};
+
 interface VolumeViewer3DProps {
   preset: string;
 }
 
 const VolumeViewer3D: React.FC<VolumeViewer3DProps> = ({ preset }) => {
-  const elementRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>('Please upload DICOM files.');
+  const [uploading, setUploading] = useState(false);
+
+  const viewerElementRef = useRef<HTMLDivElement>(null);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const viewportRef = useRef<Types.IVolumeViewport | null>(null);
 
-  useEffect(() => {
-    const initialize = async () => {
-      await initDemo();
-      
-      const toolGroup = ToolGroupManager.createToolGroup(toolGroupId);
-      addManipulationBindings(toolGroup, {
-        is3DViewport: true,
+  async function handleFilesUpload(
+    files: FileList
+  ): Promise<{ studyUID: string; seriesUID: string }> {
+    if (!files.length) {
+      throw new Error('No files to upload.');
+    }
+
+    setUploading(true);
+    setError(null);
+    setStatus('Uploading DICOM files to Orthanc...');
+
+    const uploadPromises = Array.from(files).map(async (file, i) => {
+      const res = await fetch(`${ORTHANC_URL}/instances`, {
+        method: 'POST',
+        body: await file.arrayBuffer(),
+        headers: { 'Content-Type': 'application/dicom' },
       });
+      if (!res.ok) {
+        throw new Error(`Upload failed for file ${i + 1}: ${res.statusText}`);
+      }
+      const json = await res.json();
+      return json.ID as string;
+    });
 
-      const imageIds = await createImageIdsAndCacheMetaData({
-        StudyInstanceUID:
-          '1.3.6.1.4.1.14519.5.2.1.7009.2403.871108593056125491804754960339',
-        SeriesInstanceUID:
-          '1.3.6.1.4.1.14519.5.2.1.7009.2403.367700692008930469189923116409',
-        wadoRsRoot: 'https://d14fa38qiwhyfd.cloudfront.net/dicomweb',
-      });
+    let instanceIDs: string[];
+    try {
+      instanceIDs = await Promise.all(uploadPromises);
+    } catch (e: any) {
+      setError(`Upload error: ${e.message}`);
+      setStatus('Error during upload.');
+      setUploading(false);
+      throw e;
+    }
 
-      renderingEngineRef.current = new RenderingEngine(renderingEngineId);
+    const infoRes = await fetch(`${ORTHANC_URL}/instances/${instanceIDs[0]}`);
+    if (!infoRes.ok) {
+      throw new Error('Failed to fetch instance metadata');
+    }
+    const info = await infoRes.json();
+    const studyUID = info.ParentStudy as string;
+    const seriesUID = info.ParentSeries as string;
 
-      const viewportInput = {
+    setStatus('Files uploaded. Preparing 3D volume...');
+    setUploading(false);
+
+    return { studyUID, seriesUID };
+  }
+
+  async function renderVolume(
+    seriesUID: string,
+    preset: string,
+    container: HTMLDivElement
+  ) {
+    if (renderingEngineRef.current) {
+      renderingEngineRef.current.destroy();
+    }
+    const existingTG = ToolGroupManager.getToolGroup(toolGroupId);
+    if (existingTG) {
+      ToolGroupManager.destroyToolGroup(toolGroupId);
+    }
+
+    setStatus('Initializing viewer...');
+    await initDemo();
+
+    const engine = new RenderingEngine(renderingEngineId);
+    renderingEngineRef.current = engine;
+
+    engine.setViewports([
+      {
         viewportId,
         type: ViewportType.VOLUME_3D,
-        element: elementRef.current!,
+        element: container,
         defaultOptions: {
           orientation: Enums.OrientationAxis.CORONAL,
           background: CONSTANTS.BACKGROUND_COLORS.slicer3D.slice(0, 3) as RGB,
         },
-      };
+      },
+    ]);
 
-      renderingEngineRef.current.setViewports([viewportInput]);
-      toolGroup.addViewport(viewportId, renderingEngineId);
+    const toolGroup = ToolGroupManager.createToolGroup(toolGroupId);
+    const { TrackballRotateTool, ZoomTool, PanTool } = cornerstoneTools;
+    toolGroup.addTool(TrackballRotateTool.toolName);
+    toolGroup.addTool(ZoomTool.toolName);
+    toolGroup.addTool(PanTool.toolName);
+    toolGroup.setToolActive(TrackballRotateTool.toolName, { bindings: [{ mouseButton: 1 }] });
+    toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: 3 }] });
+    toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: 2 }] });
+    toolGroup.addViewport(viewportId, renderingEngineId);
 
-      const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds });
-      volume.load();
+    setStatus('Fetching DICOM images & metadata...');
+    const { imageIds, metadata } = await generateVolumePropsFromImageIds({
+      SeriesInstanceUID: seriesUID,
+      wadoRsRoot: ORTHANC_WADO_CONFIG.wadoRsRoot,
+      withCredentials: false,
+    });
 
-      viewportRef.current = renderingEngineRef.current.getViewport(viewportId) as Types.IVolumeViewport;
+    setStatus(`Creating 3D volume from ${imageIds.length} images...`);
+    // Create the volume (metadata is auto-generated by the streaming loader)
+const volume = await volumeLoader.createAndCacheVolume(volumeId, {
+  imageIds,
+});
+    await volume.load();
 
-      await setVolumesForViewports(
-        renderingEngineRef.current,
-        [{ volumeId }],
-        [viewportId]
-      );
+    const viewport = engine.getViewport(viewportId) as Types.IVolumeViewport;
+    viewportRef.current = viewport;
 
-      // Use the preset from props when initializing
-      viewportRef.current.setProperties({ preset });
-      viewportRef.current.render();
-    };
+    await setVolumesForViewports(engine, [{ volumeId }], [viewportId]);
+    viewport.setProperties({ orientation: Enums.OrientationAxis.AXIAL, preset });
+    viewport.render();
 
-    if (elementRef.current) {
-      initialize();
-    }
-
-    return () => {
-      renderingEngineRef.current?.destroy();
-      ToolGroupManager.destroyToolGroup(toolGroupId);
-    };
-  }, []);
-
-  // Listen for changes to the preset prop and update the viewport
-  useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.setProperties({ preset });
-      viewportRef.current.render();
-    }
-  }, [preset]);
+    setStatus('Volume rendered successfully.');
+  }
 
   return (
-    <div className="h-full">
-      {/* Container takes full width and height */}
-      <div
-        ref={elementRef}
-        className="w-full h-full relative"
-        onContextMenu={(e) => e.preventDefault()}
-      ></div>
+    <div className="h-full flex flex-col">
+      <div className="p-4 border-b flex items-center">
+        <input
+          id="dicom-upload"
+          type="file"
+          accept=".dcm"
+          multiple
+          disabled={uploading}
+          onChange={async (e) => {
+            if (!e.target.files) return;
+            try {
+              const { seriesUID } = await handleFilesUpload(e.target.files);
+              if (viewerElementRef.current) {
+                await renderVolume(
+                  seriesUID,
+                  preset,
+                  viewerElementRef.current
+                );
+              }
+            } catch {
+            }
+          }}
+          className="mr-4"
+        />
+        <div>
+          {status && <p className="text-green-600">{status}</p>}
+          {error && <p className="text-red-600">{error}</p>}
+        </div>
+      </div>
+
+      <div className="flex-1 relative">
+        <div
+          ref={viewerElementRef}
+          className="w-full h-full"
+          onContextMenu={(e) => e.preventDefault()}
+        />
+      </div>
     </div>
   );
 };
 
 export default VolumeViewer3D;
-
