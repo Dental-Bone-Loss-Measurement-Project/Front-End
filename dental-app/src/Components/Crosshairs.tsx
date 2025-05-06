@@ -18,13 +18,12 @@ import { FaCrosshairs, FaCamera } from 'react-icons/fa';
 import { CiSearch } from "react-icons/ci";
 import { GrPowerReset, GrPan } from "react-icons/gr";
 import { AiOutlineRotateRight } from "react-icons/ai";
-import { PanTool, CrosshairsTool, ZoomTool } from '@cornerstonejs/tools';
+import { PanTool, CrosshairsTool, ZoomTool, TrackballRotateTool } from '@cornerstonejs/tools';
 import {
   addDropdownToToolbar,
   addManipulationBindings,
   addButtonToToolbar,
 } from '../../utils/demo/helpers';
-import VolumeViewer3D from "./VolumeViewer3D";
 import { vec3, mat4 } from 'gl-matrix';
 import cornerstoneDICOMImageLoader from '@cornerstonejs/dicom-image-loader';
 
@@ -32,16 +31,18 @@ const volumeName = 'VOLUME_ID';
 const volumeLoaderScheme = 'cornerstoneStreamingImageVolume';
 const volumeId = `${volumeLoaderScheme}:${volumeName}`;
 const toolGroupId = 'CROSSHAIRS_TOOLGROUP_ID';
+const volumeToolGroupId = 'VOLUME_TOOL_GROUP_ID';
 const axialViewportId = 'AXIAL_VIEWPORT_ID';
 const sagittalViewportId = 'SAGITTAL_VIEWPORT_ID';
 const coronalViewportId = 'CORONAL_VIEWPORT_ID';
-const viewportIds = [axialViewportId, sagittalViewportId, coronalViewportId];
+const volumeViewportId = 'VOLUME_VIEWPORT_ID';
+const viewportIds = [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId];
 const renderingEngineId = 'volumeRenderingEngine';
 const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 
 // Cache settings for large series
 const MAX_CACHE_SIZE_MB = 2048; // 2GB cache
-const BATCH_SIZE = 100; // Process 100 files at a time
+const BATCH_SIZE = 50; // Process 100 files at a time
 const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 
 interface CrosshairsProps {
@@ -59,6 +60,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
   const axialViewportElementRef = useRef<HTMLDivElement>(null);
   const sagittalViewportElementRef = useRef<HTMLDivElement>(null);
   const coronalViewportElementRef = useRef<HTMLDivElement>(null);
+  const volumeViewportElementRef = useRef<HTMLDivElement>(null);
   const running = useRef(false);
 
   let synchronizer: cornerstoneTools.Synchronizer;
@@ -75,19 +77,23 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     const axialElement = axialViewportElementRef.current;
     const sagittalElement = sagittalViewportElementRef.current;
     const coronalElement = coronalViewportElementRef.current;
+    const volumeElement = volumeViewportElementRef.current;
 
     const axialClickHandler = () => handleViewportClick(axialViewportId);
     const sagittalClickHandler = () => handleViewportClick(sagittalViewportId);
     const coronalClickHandler = () => handleViewportClick(coronalViewportId);
+    const volumeClickHandler = () => handleViewportClick(volumeViewportId);
 
     if (axialElement) axialElement.addEventListener('click', axialClickHandler);
     if (sagittalElement) sagittalElement.addEventListener('click', sagittalClickHandler);
     if (coronalElement) coronalElement.addEventListener('click', coronalClickHandler);
+    if (volumeElement) volumeElement.addEventListener('click', volumeClickHandler);
 
     return () => {
       if (axialElement) axialElement.removeEventListener('click', axialClickHandler);
       if (sagittalElement) sagittalElement.removeEventListener('click', sagittalClickHandler);
       if (coronalElement) coronalElement.removeEventListener('click', coronalClickHandler);
+      if (volumeElement) volumeElement.removeEventListener('click', volumeClickHandler);
     };
   }, []);
 
@@ -119,6 +125,9 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       case coronalViewportId:
         rotationAxis = [0, 1, 0];
         break;
+      case volumeViewportId:
+        rotationAxis = [0, 0, 1]; // Default for 3D
+        break;
     }
 
     const rotationMatrix = mat4.create();
@@ -134,7 +143,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     viewport.render();
   };
 
-  // Handle WebGL context loss
   const handleContextLost = (event: Event) => {
     event.preventDefault();
     console.warn('WebGL context lost. Attempting to restore...');
@@ -159,7 +167,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           defaultOptions: {
             orientation: Enums.OrientationAxis.AXIAL,
             background: [0, 0, 0] as Types.Point3,
-            textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0, // Lower quality for large series
+            textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0,
           },
         },
         {
@@ -182,16 +190,33 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
             textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0,
           },
         },
+        {
+          viewportId: volumeViewportId,
+          type: Enums.ViewportType.VOLUME_3D,
+          element: volumeViewportElementRef.current,
+          defaultOptions: {
+            orientation: Enums.OrientationAxis.CORONAL,
+            background: [0, 0, 0] as Types.Point3,
+          },
+        },
       ];
 
       renderingEngine.setViewports(viewportInputArray);
 
       const toolGroup = cornerstoneTools.ToolGroupManager.createToolGroup(toolGroupId);
       addManipulationBindings(toolGroup);
-
       toolGroup.addViewport(axialViewportId, renderingEngineId);
       toolGroup.addViewport(sagittalViewportId, renderingEngineId);
       toolGroup.addViewport(coronalViewportId, renderingEngineId);
+
+      const volumeToolGroup = cornerstoneTools.ToolGroupManager.createToolGroup(volumeToolGroupId);
+      volumeToolGroup.addTool(TrackballRotateTool.toolName);
+      volumeToolGroup.addTool(ZoomTool.toolName);
+      volumeToolGroup.addTool(PanTool.toolName);
+      volumeToolGroup.setToolActive(TrackballRotateTool.toolName, { bindings: [{ mouseButton: 1 }] });
+      volumeToolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: 3 }] });
+      volumeToolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: 2 }] });
+      volumeToolGroup.addViewport(volumeViewportId, renderingEngineId);
 
       const isMobile = window.matchMedia('(any-pointer:coarse)').matches;
       toolGroup.addTool(CrosshairsTool.toolName, {
@@ -324,6 +349,9 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           case coronalViewportId:
             element = coronalViewportElementRef.current;
             break;
+          case volumeViewportId:
+            element = volumeViewportElementRef.current;
+            break;
         }
 
         if (!element) return;
@@ -388,6 +416,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     [axialViewportId]: 'rgb(200, 0, 0)',
     [sagittalViewportId]: 'rgb(200, 200, 0)',
     [coronalViewportId]: 'rgb(0, 200, 0)',
+    [volumeViewportId]: 'rgb(0, 0, 200)',
   };
 
   function getReferenceLineColor(viewportId: string | number) {
@@ -428,16 +457,14 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       alert('Warning: Loading 450+ files may require significant system resources. Ensure you have a high-performance device.');
     }
 
-    if (files.length == 1){
+    if (files.length == 1) {
       alert('Warning: Loading a single file may not provide a complete view. Please upload multiple files for better visualization.');
       return;
     }
 
-    // Generate image IDs and validate metadata
     const imageIds: { id: string; fileName: string }[] = [];
     const validImageIds: string[] = [];
 
-    // Step 1: Generate all imageIds
     for (const file of Array.from(files)) {
       try {
         if (!file.name.toLowerCase().endsWith('.dcm') && file.type !== 'application/dicom') {
@@ -451,7 +478,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       }
     }
 
-    // Step 2: Preload images in batches to ensure metadata is available
     for (let i = 0; i < imageIds.length; i += BATCH_SIZE) {
       const batch = imageIds.slice(i, i + BATCH_SIZE);
       await Promise.all(
@@ -471,7 +497,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           }
         })
       );
-      // Purge cache periodically to free memory
       cache.purgeCache();
       console.log('Cache size after batch:', cache.getCacheSize() / (1024 * 1024), 'MB');
     }
@@ -482,7 +507,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     }
 
     try {
-      // Safely remove existing volume from cache
       try {
         if (cache.getVolumeLoadObject(volumeId)) {
           cache.removeVolumeLoadObject(volumeId);
@@ -491,28 +515,24 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         console.warn(`Failed to remove volume ${volumeId} from cache:`, error);
       }
 
-      // Create and cache new volume with valid imageIds
       const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds: validImageIds });
-
-      // Load the volume data
       await volume.load();
 
-      // Get the rendering engine
       const renderingEngine = getRenderingEngine(renderingEngineId);
       if (!renderingEngine) {
         console.error('Rendering engine not found.');
         return;
       }
 
-      // Set the new volume to all three viewports
       await setVolumesForViewports(
         renderingEngine,
         [{ volumeId, textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0 }],
-        [axialViewportId, sagittalViewportId, coronalViewportId]
+        [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
-      // Render the updated viewports
-      renderingEngine.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
+      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
+      volumeViewport.setProperties({ preset });
+      renderingEngine.renderViewports(viewportIds);
     } catch (error) {
       console.error('Error loading volume:', error);
       alert('Failed to load DICOM files. Please ensure all files are valid and try again.');
@@ -524,7 +544,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       if (running.current) return;
       running.current = true;
 
-      // Initialize Cornerstone libraries
       await csRenderInit();
       await csToolsInit();
       await dicomImageLoaderInit({
@@ -537,22 +556,20 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         },
       });
 
-      // Set cache size
       cache.setMaxCacheSize(MAX_CACHE_SIZE_MB * 1024 * 1024);
 
-      // Add tools
       cornerstoneTools.addTool(CrosshairsTool);
       cornerstoneTools.addTool(PanTool);
       cornerstoneTools.addTool(ZoomTool);
+      cornerstoneTools.addTool(TrackballRotateTool);
 
-      // Initialize rendering engine
       await setupRenderingEngine();
 
-      // Add context loss listener to viewports
       const canvases = [
         axialViewportElementRef.current?.querySelector('canvas'),
         sagittalViewportElementRef.current?.querySelector('canvas'),
         coronalViewportElementRef.current?.querySelector('canvas'),
+        volumeViewportElementRef.current?.querySelector('canvas'),
       ];
       canvases.forEach((canvas) => {
         if (canvas) {
@@ -574,11 +591,11 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     });
 
     return () => {
-      // Cleanup context loss listeners
       const canvases = [
         axialViewportElementRef.current?.querySelector('canvas'),
         sagittalViewportElementRef.current?.querySelector('canvas'),
         coronalViewportElementRef.current?.querySelector('canvas'),
+        volumeViewportElementRef.current?.querySelector('canvas'),
       ];
       canvases.forEach((canvas) => {
         if (canvas) {
@@ -591,26 +608,39 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     axialViewportElementRef,
     sagittalViewportElementRef,
     coronalViewportElementRef,
+    volumeViewportElementRef,
     running,
   ]);
 
   return (
-    <>
-    <div className="">
-      <input
-        type="file"
-        multiple
-        accept="application/dicom,.dcm"
-        onChange={handleFileSelect}
-        className="mb-4 p-2 border rounded"
-      />
+    <div className="bg-black">
+      <div className="">
+        <input
+          type="file"
+          multiple
+          accept="application/dicom,.dcm"
+          onChange={handleFileSelect}
+          className="mb-4 p-2 border rounded text-white bg-gray-800 border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
       <div className="flex flex-col h-screen">
         <div className="flex-1 p-1">
           <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
-            <div className="relative border border-blue-500/50 overflow-hidden">
-              <VolumeViewer3D preset={preset} />
-            </div>
+            <div
+              ref={volumeViewportElementRef}
+              onClick={() => setActiveViewportId(volumeViewportId)}
+              className={`
+                relative
+                overflow-hidden
+                cursor-pointer
+                transition-all
+                duration-200
+                ${activeViewportId === volumeViewportId
+                  ? 'border-4 border-blue-500'
+                  : 'border border-blue-500/50'
+                }
+              `}
+            />
             <div
               ref={axialViewportElementRef}
               onClick={() => setActiveViewportId(axialViewportId)}
@@ -659,7 +689,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
