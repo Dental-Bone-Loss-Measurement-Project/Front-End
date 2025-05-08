@@ -1,11 +1,12 @@
 // App.tsx
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-
+//import VolumeViewer3D from "./Components/VolumeViewer3D";
 import Header from "./Components/Header";
 import { SideBar } from "./Components/SideBar";
 import Crosshairs from "./Components/Crosshairs";
 import ImageUpload from "./Components/Panorama"; // Adjust path if different
+//import MedicalViewer from "./Components/MedicalViewer";
 
 function App() {
   const [preset, setPreset] = useState<string>('CT-Bone');

@@ -1,4 +1,5 @@
-import React, { useRef, useState } from 'react';
+// VolumeViewer3D.tsx
+import React, { useEffect, useRef, useState } from 'react';
 import {
   CONSTANTS,
   Enums,
@@ -8,8 +9,7 @@ import {
   Types,
 } from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
-import { initDemo } from '../../utils/demo/helpers';
-import generateVolumePropsFromImageIds from '../../utils/demo/helpers/generateVolumePropsFromImageIds';
+import { initDemo } from '../../utils/demo/helpers'; // Use if needed for initialization.
 import { RGB } from '@cornerstonejs/core/types';
 
 const { ToolGroupManager } = cornerstoneTools;
@@ -29,6 +29,11 @@ const ORTHANC_WADO_CONFIG = {
   wadoRsRoot: `${ORTHANC_URL}/dicom-web`,
 };
 
+const ORTHANC_URL = '/orthanc';
+const ORTHANC_WADO_CONFIG = {
+  wadoUriRoot: `${ORTHANC_URL}/wado`,
+  wadoRsRoot: `${ORTHANC_URL}/dicom-web`,
+};
 interface VolumeViewer3DProps {
   preset: string;
 }
@@ -37,147 +42,213 @@ const VolumeViewer3D: React.FC<VolumeViewer3DProps> = ({ preset }) => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('Please upload DICOM files.');
   const [uploading, setUploading] = useState(false);
+  const [studyUID, setStudyUID] = useState<string | null>(null);
+  const [seriesUID, setSeriesUID] = useState<string | null>(null);
 
   const viewerElementRef = useRef<HTMLDivElement>(null);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
   const viewportRef = useRef<Types.IVolumeViewport | null>(null);
 
-  async function handleFilesUpload(
-    files: FileList
-  ): Promise<{ studyUID: string; seriesUID: string }> {
-    if (!files.length) {
-      throw new Error('No files to upload.');
-    }
-
+  // Orthanc upload handler: uploads files, retrieves study and series UIDs from Orthanc.
+  const handleFilesUpload = async (files: FileList) => {
+    if (files.length === 0) return;
     setUploading(true);
     setError(null);
     setStatus('Uploading DICOM files to Orthanc...');
 
-    const uploadPromises = Array.from(files).map(async (file, i) => {
-      const res = await fetch(`${ORTHANC_URL}/instances`, {
-        method: 'POST',
-        body: await file.arrayBuffer(),
-        headers: { 'Content-Type': 'application/dicom' },
-      });
-      if (!res.ok) {
-        throw new Error(`Upload failed for file ${i + 1}: ${res.statusText}`);
-      }
-      const json = await res.json();
-      return json.ID as string;
-    });
-
-    let instanceIDs: string[];
     try {
-      instanceIDs = await Promise.all(uploadPromises);
-    } catch (e: any) {
-      setError(`Upload error: ${e.message}`);
+      let lastStudyUID: string | null = null;
+      let lastSeriesUID: string | null = null;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const response = await fetch(`${ORTHANC_URL}/instances`, {
+          method: 'POST',
+          body: await file.arrayBuffer(),
+          headers: {
+            'Content-Type': 'application/dicom',
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`Upload failed for file ${i + 1}: ${response.statusText}`);
+        }
+        const instanceData = await response.json();
+        console.log("Instance Data (POST response):", instanceData);
+
+        // Fetch detailed info primarily for ParentSeries if needed, or other details
+        const instanceInfo = await fetch(`${ORTHANC_URL}/instances/${instanceData.ID}`).then(res =>
+          res.json()
+        );
+        console.log("Full instanceInfo JSON (GET /instances/ID):", JSON.stringify(instanceInfo, null, 2));
+
+        // Use ParentStudy from the initial POST response (instanceData)
+        if (!lastStudyUID && instanceData.ParentStudy) {
+             lastStudyUID = instanceData.ParentStudy;
+        }
+        // Use ParentSeries from the detailed GET response (instanceInfo)
+        if (!lastSeriesUID && instanceInfo.ParentSeries) {
+             lastSeriesUID = instanceInfo.ParentSeries;
+        }
+
+        console.log('instanceData.ParentStudy:', instanceData.ParentStudy);
+        console.log('instanceInfo.ParentSeries:', instanceInfo.ParentSeries);
+        console.log('lastStudyUID after check:', lastStudyUID);
+        console.log('lastSeriesUID after check:', lastSeriesUID);
+
+        // Optional: Break early if both UIDs are found
+        if (lastStudyUID && lastSeriesUID) {
+             console.log("Both UIDs found, breaking loop.");
+        }
+      }
+
+      setStudyUID(lastStudyUID);
+      setSeriesUID(lastSeriesUID);
+      console.log('Study UID:', lastStudyUID);
+      console.log('Series UID:', lastSeriesUID);
+      setStatus('Files uploaded. Preparing 3D volume...');
+    } catch (err: unknown) {
+      console.error(err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Upload error: ${errorMessage}`);
       setStatus('Error during upload.');
+    } finally {
       setUploading(false);
-      throw e;
     }
+  };
 
-    const infoRes = await fetch(`${ORTHANC_URL}/instances/${instanceIDs[0]}`);
-    if (!infoRes.ok) {
-      throw new Error('Failed to fetch instance metadata');
-    }
-    const info = await infoRes.json();
-    const studyUID = info.ParentStudy as string;
-    const seriesUID = info.ParentSeries as string;
+  // Create and render volume from Orthanc data.
+  useEffect(() => {
+    const renderVolume = async () => {
+      console.log('i entered rendervolume');
+      console.log(viewerElementRef.current);
+      if (!viewerElementRef.current) return;
 
-    setStatus('Files uploaded. Preparing 3D volume...');
-    setUploading(false);
+      // Only render if we have valid study and series UIDs
+      console.log('studyUID', studyUID);
+      console.log('seriesUID', seriesUID);
+      if (!seriesUID && !studyUID) return;
 
-    return { studyUID, seriesUID };
-  }
+      // Clean up previous instance
+      console.log('before cleanup');
+      console.log(renderingEngineRef.current);
+      if (renderingEngineRef.current) {
+        renderingEngineRef.current.destroy();
+      }
+      const existingToolGroup = ToolGroupManager.getToolGroup(toolGroupId);
+      if (existingToolGroup) {
+        ToolGroupManager.destroyToolGroup(toolGroupId);
+      }
+      console.log('i entered cleanup');
+      console.log(renderingEngineRef.current);
+      try {
+        setStatus('Initializing viewer...');
+        console.log('i entered initializing viewer');
+        await initDemo(); // If you need additional initialization steps.
 
-  async function renderVolume(
-    seriesUID: string,
-    preset: string,
-    container: HTMLDivElement
-  ) {
-    if (renderingEngineRef.current) {
-      renderingEngineRef.current.destroy();
-    }
-    const existingTG = ToolGroupManager.getToolGroup(toolGroupId);
-    if (existingTG) {
-      ToolGroupManager.destroyToolGroup(toolGroupId);
-    }
+        // Register tools globally before creating the tool group
+        const { ZoomTool, PanTool, TrackballRotateTool } = cornerstoneTools;
+        cornerstoneTools.addTool(TrackballRotateTool);
+        cornerstoneTools.addTool(ZoomTool);
+        cornerstoneTools.addTool(PanTool);
 
-    setStatus('Initializing viewer...');
-    await initDemo();
+        const renderingEngine = new RenderingEngine(renderingEngineId);
+        renderingEngineRef.current = renderingEngine;
+        console.log("before viewport input");
+        const viewportInput = {
+          viewportId,
+          type: ViewportType.VOLUME_3D,
+          element: viewerElementRef.current,
+          defaultOptions: {
+            orientation: Enums.OrientationAxis.CORONAL,
+            background: CONSTANTS.BACKGROUND_COLORS.slicer3D.slice(0, 3) as RGB,
+          },
+        };
+        console.log("after viewport input");
+        renderingEngine.setViewports([viewportInput]);
 
-    const engine = new RenderingEngine(renderingEngineId);
-    renderingEngineRef.current = engine;
+        // Setup mouse interaction tools.
+        const toolGroup = ToolGroupManager.createToolGroup(toolGroupId);
+        // Tools are already registered globally, retrieve them for adding to the group
+        toolGroup.addTool(TrackballRotateTool.toolName);
+        toolGroup.addTool(ZoomTool.toolName);
+        toolGroup.addTool(PanTool.toolName);
+        toolGroup.setToolActive(TrackballRotateTool.toolName, { bindings: [{ mouseButton: 1 }] });
+        toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: 3 }] });
+        toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: 2 }] });
+        toolGroup.addViewport(viewportId, renderingEngineId);
 
-    engine.setViewports([
-      {
-        viewportId,
-        type: ViewportType.VOLUME_3D,
-        element: container,
-        defaultOptions: {
-          orientation: Enums.OrientationAxis.CORONAL,
-          background: CONSTANTS.BACKGROUND_COLORS.slicer3D.slice(0, 3) as RGB,
-        },
-      },
-    ]);
+        // Fetch DICOM image IDs from Orthanc.
+        const { createImageIdsAndCacheMetaData } = await import('../../utils/demo/helpers');
+        setStatus('Fetching DICOM images from Orthanc...');
+        console.log("before image ids");
+        console.log("studyUID", studyUID);
+        console.log("seriesUID", seriesUID);
+        const imageIds = await createImageIdsAndCacheMetaData({
+          StudyInstanceUID: studyUID,
+          SeriesInstanceUID: seriesUID,
+          wadoRsRoot: ORTHANC_WADO_CONFIG.wadoRsRoot,
+        });
+        console.log("after image ids");
+        if (!imageIds || imageIds.length === 0) {
+          throw new Error('No images found from Orthanc.');
+        }
+        setStatus(`Creating 3D volume from ${imageIds.length} images...`);
 
-    const toolGroup = ToolGroupManager.createToolGroup(toolGroupId);
-    const { TrackballRotateTool, ZoomTool, PanTool } = cornerstoneTools;
-    toolGroup.addTool(TrackballRotateTool.toolName);
-    toolGroup.addTool(ZoomTool.toolName);
-    toolGroup.addTool(PanTool.toolName);
-    toolGroup.setToolActive(TrackballRotateTool.toolName, { bindings: [{ mouseButton: 1 }] });
-    toolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: 3 }] });
-    toolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: 2 }] });
-    toolGroup.addViewport(viewportId, renderingEngineId);
+        // Create the volume.
+        console.log("before volume input options");
+        const volumeInputOptions = {
+          imageIds,
+          spacing: undefined, // spacing will be inferred from metadata
+          orientation: Enums.OrientationAxis.AXIAL,
+        };
+        console.log('before volume loader');
+        const volume = await volumeLoader.createAndCacheVolume(volumeId, volumeInputOptions);
+        console.log('after volume loader');
+        await volume.load();
 
-    setStatus('Fetching DICOM images & metadata...');
-    const { imageIds, metadata } = await generateVolumePropsFromImageIds({
-      SeriesInstanceUID: seriesUID,
-      wadoRsRoot: ORTHANC_WADO_CONFIG.wadoRsRoot,
-      withCredentials: false,
-    });
+        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
+        viewportRef.current = viewport;
+        
+        await setVolumesForViewports(renderingEngine, [{ volumeId }], [viewportId]);
+        console.log('after set volumes for viewports');
+        // Apply the preset from props
+        viewport.setProperties({ preset });
+        viewport.render();
+        console.log('after render');
+        setStatus('Volume rendered successfully.');
+      } catch (err: unknown) {
+        console.error(err);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setError(`Rendering error: ${errorMessage}`);
+        setStatus('Error rendering volume.');
+      }
+    };
 
-    setStatus(`Creating 3D volume from ${imageIds.length} images...`);
-    // Create the volume (metadata is auto-generated by the streaming loader)
-const volume = await volumeLoader.createAndCacheVolume(volumeId, {
-  imageIds,
-});
-    await volume.load();
+    renderVolume();
 
-    const viewport = engine.getViewport(viewportId) as Types.IVolumeViewport;
-    viewportRef.current = viewport;
-
-    await setVolumesForViewports(engine, [{ volumeId }], [viewportId]);
-    viewport.setProperties({ orientation: Enums.OrientationAxis.AXIAL, preset });
-    viewport.render();
-
-    setStatus('Volume rendered successfully.');
-  }
+    return () => {
+      if (renderingEngineRef.current) {
+        renderingEngineRef.current.destroy();
+      }
+      const toolGroup = ToolGroupManager.getToolGroup(toolGroupId);
+      if (toolGroup) {
+        ToolGroupManager.destroyToolGroup(toolGroupId);
+      }
+    };
+  }, [studyUID, seriesUID, preset]);
 
   return (
     <div className="h-full flex flex-col">
+      {/* Upload Bar */}
       <div className="p-4 border-b flex items-center">
         <input
+          aria-label="Upload DICOM files"
           id="dicom-upload"
           type="file"
           accept=".dcm"
           multiple
           disabled={uploading}
-          onChange={async (e) => {
-            if (!e.target.files) return;
-            try {
-              const { seriesUID } = await handleFilesUpload(e.target.files);
-              if (viewerElementRef.current) {
-                await renderVolume(
-                  seriesUID,
-                  preset,
-                  viewerElementRef.current
-                );
-              }
-            } catch {
-            }
-          }}
+          onChange={(e) => e.target.files && handleFilesUpload(e.target.files)}
           className="mr-4"
         />
         <div>
@@ -186,6 +257,7 @@ const volume = await volumeLoader.createAndCacheVolume(volumeId, {
         </div>
       </div>
 
+      {/* Full screen viewer */}
       <div className="flex-1 relative">
         <div
           ref={viewerElementRef}
