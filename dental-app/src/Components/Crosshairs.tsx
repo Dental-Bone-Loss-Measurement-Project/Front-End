@@ -8,6 +8,7 @@ import {
   cache,
   imageLoader,
   metaData,
+  CONSTANTS,
 } from '@cornerstonejs/core';
 import type { Types } from '@cornerstonejs/core';
 import { init as csRenderInit } from "@cornerstonejs/core";
@@ -26,6 +27,8 @@ import {
 } from '../../utils/demo/helpers';
 import { vec3, mat4 } from 'gl-matrix';
 import cornerstoneDICOMImageLoader from '@cornerstonejs/dicom-image-loader';
+import * as csRenderCore from '@cornerstonejs/core';
+import axios from 'axios';
 
 const volumeName = 'VOLUME_ID';
 const volumeLoaderScheme = 'cornerstoneStreamingImageVolume';
@@ -42,8 +45,23 @@ const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 
 // Cache settings for large series
 const MAX_CACHE_SIZE_MB = 2048; // 2GB cache
-const BATCH_SIZE = 50; // Process 100 files at a time
+const BATCH_SIZE = 50; // Process 50 files at a time
 const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
+const CT_BONE_ONLY_PRESET = {
+  name: 'CT-Bone-Only',
+  description: 'Shows only bone structures with no soft tissue',
+  window: 3000,
+  level: 700,
+  transferFunction: {
+    voiRange: { lower: 300, upper: 3000 },
+    opalNodes: [
+      { value: -1000, opacity: 0 },
+      { value: 200, opacity: 0 },
+      { value: 300, opacity: 0.8 },
+      { value: 1000, opacity: 1 }
+    ]
+  }
+};
 
 interface CrosshairsProps {
   preset: string;
@@ -54,6 +72,8 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
   const [isZoomActive, setIsZoomActive] = useState(false);
   const [activeViewportId, setActiveViewportId] = useState<string | null>(axialViewportId);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Processing...');
   const activeViewportIdRef = useRef<string | null>(null);
   const renderingEngineRef = useRef<RenderingEngine | null>(null);
 
@@ -77,23 +97,19 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     const axialElement = axialViewportElementRef.current;
     const sagittalElement = sagittalViewportElementRef.current;
     const coronalElement = coronalViewportElementRef.current;
-    // const volumeElement = volumeViewportElementRef.current;
 
     const axialClickHandler = () => handleViewportClick(axialViewportId);
     const sagittalClickHandler = () => handleViewportClick(sagittalViewportId);
     const coronalClickHandler = () => handleViewportClick(coronalViewportId);
-    // const volumeClickHandler = () => handleViewportClick(volumeViewportId);
 
     if (axialElement) axialElement.addEventListener('click', axialClickHandler);
     if (sagittalElement) sagittalElement.addEventListener('click', sagittalClickHandler);
     if (coronalElement) coronalElement.addEventListener('click', coronalClickHandler);
-    // if (volumeElement) volumeElement.addEventListener('click', volumeClickHandler);
 
     return () => {
       if (axialElement) axialElement.removeEventListener('click', axialClickHandler);
       if (sagittalElement) sagittalElement.removeEventListener('click', sagittalClickHandler);
       if (coronalElement) coronalElement.removeEventListener('click', coronalClickHandler);
-      // if (volumeElement) volumeElement.removeEventListener('click', volumeClickHandler);
     };
   }, []);
 
@@ -126,7 +142,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         rotationAxis = [0, 1, 0];
         break;
       case volumeViewportId:
-        rotationAxis = [0, 0, 1]; // Default for 3D
+        rotationAxis = [0, 0, 1];
         break;
     }
 
@@ -453,6 +469,16 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       return;
     }
 
+    const mhaFile = Array.from(files).find(file => 
+      file.name.toLowerCase().endsWith('.mha') || 
+      file.name.toLowerCase().endsWith('.mhd')
+    );
+    
+    if (mhaFile) {
+      await handleMhaFile(mhaFile);
+      return;
+    }
+
     if (files.length > 450) {
       alert('Warning: Loading 450+ files may require significant system resources. Ensure you have a high-performance device.');
     }
@@ -530,12 +556,135 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
-      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
-      volumeViewport.setProperties({ preset });
+      viewportIds.forEach((viewportId) => {
+        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
+        if (viewport) {
+          viewport.setProperties({ preset });
+        }
+      });
+
       renderingEngine.renderViewports(viewportIds);
     } catch (error) {
       console.error('Error loading volume:', error);
       alert('Failed to load DICOM files. Please ensure all files are valid and try again.');
+    }
+  };
+
+  const handleMhaFile = async (file: File) => {
+    try {
+      setIsLoading(true);
+      setLoadingMessage('Uploading and converting MHA to DICOM series...');
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post('http://localhost:8000/upload-volume', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 300000, // 5 minutes timeout for large files
+      });
+
+      if (!response.data) {
+        throw new Error('No data returned from server');
+      }
+
+      const { dicomBaseUrl, sliceCount, dimensions } = response.data;
+
+      if (sliceCount < 1) {
+        throw new Error('No DICOM slices generated by the server');
+      }
+
+      console.log(`Received ${sliceCount} DICOM files from server with dimensions: ${dimensions.x}x${dimensions.y}x${dimensions.z}`);
+
+      const imageIds: { id: string; fileName: string }[] = [];
+      const validImageIds: string[] = [];
+      const baseUrl = `http://localhost:8000${dicomBaseUrl}`;
+
+      for (let i = 0; i < sliceCount; i++) {
+        const fileName = `slice_${i.toString().padStart(4, '0')}.dcm`;
+        const imageId = `wadouri:${baseUrl}${fileName}`;
+        imageIds.push({ id: imageId, fileName });
+      }
+
+      setLoadingMessage('Loading DICOM slices...');
+      for (let i = 0; i < imageIds.length; i += BATCH_SIZE) {
+        const batch = imageIds.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async ({ id: imageId, fileName }) => {
+            try {
+              await imageLoader.loadImage(imageId);
+              const imagePixelModule = metaData.get('imagePixelModule', imageId);
+              if (imagePixelModule && typeof imagePixelModule.pixelRepresentation !== 'undefined') {
+                validImageIds.push(imageId);
+              } else {
+                console.warn(`Skipping imageId ${imageId} (file: ${fileName}): Missing or invalid metadata.`, {
+                  imagePixelModule,
+                });
+              }
+            } catch (error) {
+              console.warn(`Skipping imageId ${imageId} (file: ${fileName}) due to load error:`, error);
+            }
+          })
+        );
+        cache.purgeCache();
+        console.log('Cache size after batch:', cache.getCacheSize() / (1024 * 1024), 'MB');
+      }
+
+      if (validImageIds.length === 0) {
+        throw new Error('No valid DICOM files with required metadata were found');
+      }
+
+      setLoadingMessage('Creating volume...');
+      try {
+        if (cache.getVolumeLoadObject(volumeId)) {
+          cache.removeVolumeLoadObject(volumeId);
+        }
+      } catch (error) {
+        console.warn(`Failed to remove volume ${volumeId} from cache:`, error);
+      }
+
+      const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds: validImageIds });
+      await volume.load();
+
+      const renderingEngine = getRenderingEngine(renderingEngineId);
+      if (!renderingEngine) {
+        throw new Error('Rendering engine not found');
+      }
+
+      setLoadingMessage('Rendering volume...');
+      await setVolumesForViewports(
+        renderingEngine,
+        [{ volumeId, textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0 }],
+        [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
+      );
+
+      viewportIds.forEach((viewportId) => {
+        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
+        if (viewport) {
+          if (preset === 'CT-Bone-Only') {
+            viewport.setProperties({
+              voiRange: { lower: 300, upper: 3000 },
+              colormap: csRenderCore.utilities.colormap.getColormap('white'),
+              preset: undefined,
+              VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
+              invert: false,
+              interpolationType: Enums.InterpolationType.NEAREST
+            });
+          } else {
+            viewport.setProperties({ preset });
+          }
+        }
+      });
+
+      renderingEngine.renderViewports(viewportIds);
+      console.log('MHA file successfully rendered');
+    } catch (error) {
+      console.error('Error processing MHA file:', error);
+      alert(`Failed to process MHA file: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+      setLoadingMessage('Processing...');
     }
   };
 
@@ -612,16 +761,52 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     running,
   ]);
 
+  useEffect(() => {
+    const renderingEngine = getRenderingEngine(renderingEngineId);
+    if (!renderingEngine) return;
+
+    try {
+      viewportIds.forEach((viewportId) => {
+        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
+        if (!viewport) return;
+
+        if (!cache.getVolumeLoadObject(volumeId)) {
+          console.log('Volume not loaded yet, cannot apply preset');
+          return;
+        }
+
+        if (preset === 'CT-Bone-Only') {
+          viewport.setProperties({
+            voiRange: { lower: 300, upper: 3000 },
+            colormap: csRenderCore.utilities.colormap.getColormap('white'),
+            preset: undefined,
+            VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
+            invert: false,
+            interpolationType: Enums.InterpolationType.NEAREST
+          });
+        } else {
+          viewport.setProperties({ preset });
+        }
+      });
+
+      renderingEngine.renderViewports(viewportIds);
+      console.log(`Applied preset: ${preset} to all viewports`);
+    } catch (error) {
+      console.error('Error applying preset:', error);
+    }
+  }, [preset]);
+
   return (
     <div className="bg-black">
       <div className="">
         <input
           type="file"
           multiple
-          accept="application/dicom,.dcm"
+          accept="application/dicom,.dcm,.mha,.mhd"
           onChange={handleFileSelect}
           className="mb-4 p-2 border rounded text-white bg-gray-800 border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        
       </div>
       <div className="flex flex-col h-screen">
         <div className="flex-1 p-1">
@@ -677,9 +862,10 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
                 cursor-pointer
                 transition-all
                 duration-200
-                ${activeViewportId === coronalViewportId
-                  ? 'border-4 border-blue-500'
-                  : 'border border-blue-500/50'
+                ${
+                  activeViewportId === coronalViewportId
+                    ? 'border-4 border-blue-500'
+                    : 'border border-blue-500/50'
                 }
               `}
             />
