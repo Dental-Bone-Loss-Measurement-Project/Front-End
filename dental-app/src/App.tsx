@@ -5,7 +5,8 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Header from "./Components/Header";
 import { SideBar } from "./Components/SideBar";
 import Crosshairs from "./Components/Crosshairs";
-import ImageUpload from "./Components/Panorama"; // Adjust path if different
+import ImageUpload from "./Components/Panorama";
+import AnnotationUploading from"./Components/Annotation_uploading";
 //import MedicalViewer from "./Components/MedicalViewer";
 
 function App() {
@@ -29,6 +30,9 @@ function App() {
 
               {/* Convert to Panorama page */}
               <Route path="/convert" element={<ImageUpload />} />
+
+              {/* annotation page */}
+              <Route path="/annotation" element={<AnnotationUploading />} />
             </Routes>
           </div>
         </div>

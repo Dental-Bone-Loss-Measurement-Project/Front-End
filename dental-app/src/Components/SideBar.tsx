@@ -1,4 +1,4 @@
-import { FiUpload, FiImage } from "react-icons/fi";
+import { FiUpload, FiImage, FiEdit2 } from "react-icons/fi";
 import { useNavigate } from 'react-router-dom';
 import "./sidebar.css";
 import React from 'react';
@@ -41,6 +41,12 @@ export function SideBar({ onFileSelect }: SideBarProps) {
           <FiImage size={24} />
           <span>Convert to Panorama</span>
         </button>
+
+        <button onClick={()=> navigate('/annotation')} className="sidebar-btn">
+          <FiEdit2 size={24} />
+          <span>annotate your views</span>
+        </button>
+
       </nav>
     </div>
   );
