@@ -82,18 +82,15 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     const axialClickHandler = () => handleViewportClick(axialViewportId);
     const sagittalClickHandler = () => handleViewportClick(sagittalViewportId);
     const coronalClickHandler = () => handleViewportClick(coronalViewportId);
-    const volumeClickHandler = () => handleViewportClick(volumeViewportId);
 
     if (axialElement) axialElement.addEventListener('click', axialClickHandler);
     if (sagittalElement) sagittalElement.addEventListener('click', sagittalClickHandler);
     if (coronalElement) coronalElement.addEventListener('click', coronalClickHandler);
-    if (volumeElement) volumeElement.addEventListener('click', volumeClickHandler);
 
     return () => {
       if (axialElement) axialElement.removeEventListener('click', axialClickHandler);
       if (sagittalElement) sagittalElement.removeEventListener('click', sagittalClickHandler);
       if (coronalElement) coronalElement.removeEventListener('click', coronalClickHandler);
-      if (volumeElement) volumeElement.removeEventListener('click', volumeClickHandler);
     };
   }, []);
 
@@ -628,17 +625,13 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
           <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
             <div
               ref={volumeViewportElementRef}
-              onClick={() => setActiveViewportId(volumeViewportId)}
               className={`
                 relative
                 overflow-hidden
                 cursor-pointer
                 transition-all
                 duration-200
-                ${activeViewportId === volumeViewportId
-                  ? 'border-4 border-blue-500'
-                  : 'border border-blue-500/50'
-                }
+                border border-blue-500/50
               `}
             />
             <div
