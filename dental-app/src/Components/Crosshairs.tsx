@@ -47,9 +47,10 @@ const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 
 interface CrosshairsProps {
   preset: string;
+  setFileHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
 }
 
-const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
+const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
   const [isPanActive, setIsPanActive] = useState(false);
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
   const [isZoomActive, setIsZoomActive] = useState(false);
@@ -77,7 +78,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     const axialElement = axialViewportElementRef.current;
     const sagittalElement = sagittalViewportElementRef.current;
     const coronalElement = coronalViewportElementRef.current;
-    const volumeElement = volumeViewportElementRef.current;
 
     const axialClickHandler = () => handleViewportClick(axialViewportId);
     const sagittalClickHandler = () => handleViewportClick(sagittalViewportId);
@@ -609,17 +609,12 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     running,
   ]);
 
+  useEffect(() => {
+    setFileHandler(handleFileSelect);
+  }, [setFileHandler]);
+
   return (
     <div className="bg-black">
-      <div className="">
-        <input
-          type="file"
-          multiple
-          accept="application/dicom,.dcm"
-          onChange={handleFileSelect}
-          className="mb-4 p-2 border rounded text-white bg-gray-800 border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
       <div className="flex flex-col h-screen">
         <div className="flex-1 p-1">
           <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
