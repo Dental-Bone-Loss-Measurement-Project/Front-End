@@ -18,7 +18,7 @@ export function SideBar({ onFileSelect }: SideBarProps) {
   return (
     <div className="sidebar sidebar-open">
       <nav className="sidebar-nav">
-        <div className="upload-container">
+        {/* <div className="upload-container"> */}
           <input
             ref={fileInputRef}
             type="file"
@@ -32,7 +32,7 @@ export function SideBar({ onFileSelect }: SideBarProps) {
             <FiUpload size={24} />
             <span>Upload DICOM Files</span>
           </button>
-        </div>
+        {/* </div> */}
 
         <button
           onClick={() => navigate('/convert')}
