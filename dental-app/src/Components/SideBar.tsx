@@ -1,40 +1,91 @@
-import { useState } from "react";
-import { BsArrowRight, BsArrowLeft } from "react-icons/bs";
-import { FiUpload, FiImage } from "react-icons/fi";
+import { FiUpload, FiImage, FiEdit2, FiDownload, FiUploadCloud } from "react-icons/fi";
+import { useNavigate } from 'react-router-dom';
+import "./sidebar.css";
+import React from 'react';
 
-export function SideBar() {
-  const [sideBar, setSideBar] = useState(false);
+interface SideBarProps {
+  onFileSelect?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onExportAnnotations?: () => void;
+  onImportAnnotations?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  isImageLoaded?: boolean;
+}
 
-  function handleToggleSidebar() {
-    setSideBar((prevState) => !prevState);
-  }
+export function SideBar({ 
+  onFileSelect, 
+  onExportAnnotations, 
+  onImportAnnotations,
+  isImageLoaded 
+}: SideBarProps) {
+  const navigate = useNavigate();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Add debug logging
+  React.useEffect(() => {
+    console.log('SideBar props:', {
+      hasExportHandler: !!onExportAnnotations,
+      isImageLoaded,
+    });
+  }, [onExportAnnotations, isImageLoaded]);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
 
   return (
-    <div
-      className={`fixed top-0 left-0 h-full ${
-        sideBar ? 'w-64' : 'w-16'
-      } bg-gray-900 text-white transition-all duration-300 z-50`}
-    >
-      <button onClick={handleToggleSidebar} className="p-4 focus:outline-none">
-        {sideBar ? <BsArrowLeft size={24} /> : <BsArrowRight size={24} />}
-      </button>
+    <div className="sidebar sidebar-open">
+      <nav className="sidebar-nav">
+        {/* <div className="upload-container"> */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="application/dicom,.dcm"
+            onChange={onFileSelect}
+            className="hidden"
+            aria-label="Upload DICOM files"
+          />
+          <button onClick={handleUploadClick} className="sidebar-btn">
+            <FiUpload size={24} />
+            <span>Upload DICOM Files</span>
+          </button>
+        {/* </div> */}
 
-      <nav className="flex flex-col gap-6 mt-10">
         <button
-          onClick={() => alert("Upload clicked")}
-          className="flex items-center gap-4 p-4 hover:bg-gray-800"
-        >
-          <FiUpload size={24} />
-          {sideBar && <span>Upload</span>}
-        </button>
-
-        <button
-          onClick={() => alert("Convert to Panorama clicked")}
-          className="flex items-center gap-4 p-4 hover:bg-gray-800"
+          onClick={() => navigate('/convert')}
+          className="sidebar-btn"
         >
           <FiImage size={24} />
-          {sideBar && <span>Convert to Panorama</span>}
+          <span>Convert to Panorama</span>
         </button>
+
+        {isImageLoaded && (
+          <>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json"
+              onChange={onImportAnnotations}
+              className="hidden"
+              aria-label="Import annotations"
+            />
+            <button onClick={handleImportClick} className="sidebar-btn">
+              <FiUploadCloud size={24} />
+              <span>Import Annotations</span>
+            </button>
+
+            {onExportAnnotations && (
+              <button onClick={onExportAnnotations} className="sidebar-btn">
+                <FiDownload size={24} />
+                <span>Export Annotations</span>
+              </button>
+            )}
+          </>
+        )}
       </nav>
     </div>
   );

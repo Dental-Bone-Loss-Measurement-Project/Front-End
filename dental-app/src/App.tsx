@@ -1,91 +1,71 @@
-import { useEffect,  useRef } from "react"
-import createImageIdsAndCacheMetaData  from "./lib/createImageIdsAndCacheMetaData"
-import { RenderingEngine, Enums, type Types, volumeLoader, cornerstoneStreamingImageVolumeLoader } from "@cornerstonejs/core"
-import {init as csRenderInit} from "@cornerstonejs/core"
-import {init as csToolsInit} from "@cornerstonejs/tools"
-import {init as dicomImageLoaderInit} from "@cornerstonejs/dicom-image-loader"
-
-
-volumeLoader.registerUnknownVolumeLoader(
-  cornerstoneStreamingImageVolumeLoader 
-)
+// App.tsx
+import React, { useState, useCallback } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+//import VolumeViewer3D from "./Components/VolumeViewer3D";
+import Header from "./Components/Header";
+import { SideBar } from "./Components/SideBar";
+import Crosshairs from "./Components/Crosshairs";
+import ImageUpload from "./Components/Panorama";
+import AnnotationUploading from"./Components/Annotation_uploading";
+//import MedicalViewer from "./Components/MedicalViewer";
 
 function App() {
-  const elementRef = useRef<HTMLDivElement>(null)
-  const running = useRef(false)
+  const [preset, setPreset] = useState<string>('CT-Bone');
+  const [handleFileSelect, setHandleFileSelect] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
+  const [handleExportAnnotations, setHandleExportAnnotations] = useState<(() => void) | undefined>();
+  const [handleImportAnnotations, setHandleImportAnnotations] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
 
-  useEffect(() => {
-    const setup = async () => {
-      if (running.current) {
-        return
-      }
-      running.current = true
-      
-      await csRenderInit()
-      await csToolsInit()
-      dicomImageLoaderInit({maxWebWorkers:1})
+  const setFileHandler = useCallback((handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => {
+    setHandleFileSelect(() => handler);
+  }, []);
 
-      // Get Cornerstone imageIds and fetch metadata into RAM
-      const imageIds = await createImageIdsAndCacheMetaData({
-        StudyInstanceUID:
-          "1.3.6.1.4.1.14519.5.2.1.7009.2403.334240657131972136850343327463",
-        SeriesInstanceUID:
-          "1.3.6.1.4.1.14519.5.2.1.7009.2403.226151125820845824875394858561",
-        wadoRsRoot: "https://d3t6nz73ql33tx.cloudfront.net/dicomweb",
-      })
+  const setExportHandler = useCallback((handler: () => void) => {
+    setHandleExportAnnotations(() => handler);
+  }, []);
 
-      // Instantiate a rendering engine
-      const renderingEngineId = "myRenderingEngine"
-      const renderingEngine = new RenderingEngine(renderingEngineId)
-      const viewportId = "CT"
-
-
-      const viewportInput = {
-        viewportId,
-        type: Enums.ViewportType.ORTHOGRAPHIC,
-        element: elementRef.current,
-        defaultOptions: {
-          orientation: Enums.OrientationAxis.SAGITTAL,
-        },
-      }
-
-      renderingEngine.enableElement(viewportInput)
-
-      // Get the stack viewport that was created
-      const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport
-
-      // Define a volume in memory
-      const volumeId = "streamingImageVolume"
-      const volume = await volumeLoader.createAndCacheVolume(volumeId, {
-        imageIds,
-      })
-
-      // Set the volume to load
-      // @ts-ignore
-      volume.load()
-
-      // Set the volume on the viewport and it's default properties
-      viewport.setVolumes([{ volumeId}])
-
-      // Render the image
-      viewport.render()
-    }
-
-    setup()
-
-    // Create a stack viewport
-  }, [elementRef, running])
+  const setImportHandler = useCallback((handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => {
+    setHandleImportAnnotations(() => handler);
+  }, []);
 
   return (
-    <div
-      ref={elementRef}
-      style={{
-        width: "512px",
-        height: "512px",
-        backgroundColor: "#000",
-      }}
-    ></div>
-  )
+    <Router>
+      <div>
+        <Header preset={preset} setPreset={setPreset} />
+        <div className="app-container flex" style={{ alignSelf: 'self-end', gap: '0.1em' }}>
+          <SideBar 
+            onFileSelect={handleFileSelect} 
+            onExportAnnotations={handleExportAnnotations}
+            onImportAnnotations={handleImportAnnotations}
+            isImageLoaded={isImageLoaded}
+          />
+          <div className="flex-grow">
+            <Routes>
+              {/* Home route with Crosshairs view */}
+              <Route 
+                path="/" 
+                element={
+                  <Crosshairs 
+                    preset={preset} 
+                    setFileHandler={setFileHandler}
+                    setExportHandler={setExportHandler}
+                    setImportHandler={setImportHandler}
+                    setIsImageLoaded={setIsImageLoaded}
+                  />
+                } 
+              />
+
+              {/* Convert to Panorama page */}
+              <Route path="/convert" element={<ImageUpload />} />
+
+              {/* annotation page */}
+              <Route path="/annotation" element={<AnnotationUploading />} />
+            </Routes>
+          </div>
+        </div>
+      </div>
+    </Router>
+  );
 }
 
-export default App
+export default App;
