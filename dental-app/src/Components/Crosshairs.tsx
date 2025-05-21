@@ -19,7 +19,23 @@ import { FaCrosshairs, FaCamera } from 'react-icons/fa';
 import { CiSearch } from "react-icons/ci";
 import { GrPowerReset, GrPan } from "react-icons/gr";
 import { AiOutlineRotateRight } from "react-icons/ai";
-import { PanTool, CrosshairsTool, ZoomTool, TrackballRotateTool } from '@cornerstonejs/tools';
+import {
+  PanTool,
+  CrosshairsTool,
+  ZoomTool,
+  TrackballRotateTool,
+  LengthTool,
+  HeightTool,
+  ProbeTool,
+  RectangleROITool,
+  EllipticalROITool,
+  CircleROITool,
+  BidirectionalTool,
+  AngleTool,
+  CobbAngleTool,
+  ArrowAnnotateTool,
+  PlanarFreehandROITool,
+} from '@cornerstonejs/tools';
 import {
   addDropdownToToolbar,
   addManipulationBindings,
@@ -46,6 +62,7 @@ const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 // Cache settings for large series
 const MAX_CACHE_SIZE_MB = 2048; // 2GB cache
 const BATCH_SIZE = 50; // Process 50 files at a time
+const BATCH_SIZE = 50; // Process 50 files at a time
 const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 const CT_BONE_ONLY_PRESET = {
   name: 'CT-Bone-Only',
@@ -65,9 +82,10 @@ const CT_BONE_ONLY_PRESET = {
 
 interface CrosshairsProps {
   preset: string;
+  setFileHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
 }
 
-const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
+const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
   const [isPanActive, setIsPanActive] = useState(false);
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
   const [isZoomActive, setIsZoomActive] = useState(false);
@@ -219,8 +237,46 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
 
       renderingEngine.setViewports(viewportInputArray);
 
+      const isMobile = window.matchMedia('(any-pointer:coarse)').matches;
+
       const toolGroup = cornerstoneTools.ToolGroupManager.createToolGroup(toolGroupId);
       addManipulationBindings(toolGroup);
+      toolGroup.addTool(LengthTool.toolName);
+      toolGroup.addTool(HeightTool.toolName);
+      toolGroup.addTool(ProbeTool.toolName);
+      toolGroup.addTool(RectangleROITool.toolName);
+      toolGroup.addTool(EllipticalROITool.toolName);
+      toolGroup.addTool(CircleROITool.toolName);
+      toolGroup.addTool(BidirectionalTool.toolName);
+      toolGroup.addTool(AngleTool.toolName);
+      toolGroup.addTool(CobbAngleTool.toolName);
+      toolGroup.addTool(ArrowAnnotateTool.toolName);
+      toolGroup.addTool(PlanarFreehandROITool.toolName);
+      toolGroup.addTool(CrosshairsTool.toolName, {
+        getReferenceLineColor,
+        getReferenceLineControllable,
+        getReferenceLineDraggableRotatable,
+        getReferenceLineSlabThicknessControlsOn,
+        mobile: {
+          enabled: isMobile,
+          opacity: 0.8,
+          handleRadius: 9,
+        },
+      });
+      toolGroup.setToolActive(CrosshairsTool.toolName, {
+        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
+      });
+      toolGroup.setToolPassive(LengthTool.toolName);
+      toolGroup.setToolPassive(HeightTool.toolName);
+      toolGroup.setToolPassive(ProbeTool.toolName);
+      toolGroup.setToolPassive(RectangleROITool.toolName);
+      toolGroup.setToolPassive(EllipticalROITool.toolName);
+      toolGroup.setToolPassive(CircleROITool.toolName);
+      toolGroup.setToolPassive(BidirectionalTool.toolName);
+      toolGroup.setToolPassive(AngleTool.toolName);
+      toolGroup.setToolPassive(CobbAngleTool.toolName);
+      toolGroup.setToolPassive(ArrowAnnotateTool.toolName);
+      toolGroup.setToolPassive(PlanarFreehandROITool.toolName);
       toolGroup.addViewport(axialViewportId, renderingEngineId);
       toolGroup.addViewport(sagittalViewportId, renderingEngineId);
       toolGroup.addViewport(coronalViewportId, renderingEngineId);
@@ -233,19 +289,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       volumeToolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: 3 }] });
       volumeToolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: 2 }] });
       volumeToolGroup.addViewport(volumeViewportId, renderingEngineId);
-
-      const isMobile = window.matchMedia('(any-pointer:coarse)').matches;
-      toolGroup.addTool(CrosshairsTool.toolName, {
-        getReferenceLineColor,
-        getReferenceLineControllable,
-        getReferenceLineDraggableRotatable,
-        getReferenceLineSlabThicknessControlsOn,
-        mobile: {
-          enabled: isMobile,
-          opacity: 0.8,
-          handleRadius: 9,
-        },
-      });
     } catch (error) {
       console.error('Failed to reinitialize rendering engine:', error);
     }
@@ -255,6 +298,21 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     const toolbar = document.getElementById('demo-toolbar');
     if (toolbar) toolbar.innerHTML = '';
 
+    const annotationToolsNames = [
+      LengthTool.toolName,
+      HeightTool.toolName,
+      ProbeTool.toolName,
+      RectangleROITool.toolName,
+      EllipticalROITool.toolName,
+      CircleROITool.toolName,
+      BidirectionalTool.toolName,
+      AngleTool.toolName,
+      CobbAngleTool.toolName,
+      ArrowAnnotateTool.toolName,
+      PlanarFreehandROITool.toolName,
+    ];
+
+    // Add pan button
     addButtonToToolbar({
       icon: <GrPan className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Pan Tool" />,
       onClick: () => {
@@ -279,6 +337,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       },
     });
 
+    // Add zoom button
     addButtonToToolbar({
       icon: <CiSearch className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Zoom Tool" />,
       onClick: () => {
@@ -299,6 +358,21 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
             toolGroup.setToolDisabled(ZoomTool.toolName);
           }
           return newActive;
+        });
+      },
+    });
+
+    addDropdownToToolbar({
+      options: { values: annotationToolsNames, defaultValue: CrosshairsTool.toolName },
+      onSelectedValueChange: (newSelectedToolName) => {
+        const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+        toolGroup.setToolActive(newSelectedToolName, {
+          bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
+        });
+        annotationToolsNames.forEach((toolName) => {
+          if (toolName !== newSelectedToolName) {
+            toolGroup.setToolPassive(toolName);
+          }
         });
       },
     });
@@ -407,6 +481,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       },
     });
 
+    
     addButtonToToolbar({
       icon: <GrPowerReset className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Reset View" />,
       className: "flex items-center gap-2 bg-transparent border-0 text-white p-2 transition hover:underline hover:text-blue-400",
@@ -426,6 +501,23 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
       icon: <AiOutlineRotateRight className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Rotate View" />,
       onClick: () => rotateViewport(90),
     });
+  }, []);
+
+  // Add styles for dropdown menus
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      #demo-toolbar select {
+        color: white;
+        background-color: var(--color-gray-700);
+        padding: 8px;
+        border-radius: 0.25rem;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   const viewportColors: { [key: string]: string } = {
@@ -716,10 +808,22 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
 
       cache.setMaxCacheSize(MAX_CACHE_SIZE_MB * 1024 * 1024);
 
+      // Register all tools
       cornerstoneTools.addTool(CrosshairsTool);
       cornerstoneTools.addTool(PanTool);
       cornerstoneTools.addTool(ZoomTool);
       cornerstoneTools.addTool(TrackballRotateTool);
+      cornerstoneTools.addTool(LengthTool);
+      cornerstoneTools.addTool(HeightTool);
+      cornerstoneTools.addTool(ProbeTool);
+      cornerstoneTools.addTool(RectangleROITool);
+      cornerstoneTools.addTool(EllipticalROITool);
+      cornerstoneTools.addTool(CircleROITool);
+      cornerstoneTools.addTool(BidirectionalTool);
+      cornerstoneTools.addTool(AngleTool);
+      cornerstoneTools.addTool(CobbAngleTool);
+      cornerstoneTools.addTool(ArrowAnnotateTool);
+      cornerstoneTools.addTool(PlanarFreehandROITool);
 
       await setupRenderingEngine();
 
@@ -798,22 +902,11 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
 
   return (
     <div className="bg-black">
-      <div className="">
-        <input
-          type="file"
-          multiple
-          accept="application/dicom,.dcm,.mha,.mhd"
-          onChange={handleFileSelect}
-          className="mb-4 p-2 border rounded text-white bg-gray-800 border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        
-      </div>
       <div className="flex flex-col h-screen">
         <div className="flex-1 p-1">
           <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
             <div
               ref={volumeViewportElementRef}
-              onClick={() => setActiveViewportId(volumeViewportId)}
               className={`
                 relative
                 overflow-hidden
