@@ -8,7 +8,6 @@ import {
   cache,
   imageLoader,
   metaData,
-  CONSTANTS,
 } from '@cornerstonejs/core';
 import type { Types } from '@cornerstonejs/core';
 import { init as csRenderInit } from "@cornerstonejs/core";
@@ -67,6 +66,15 @@ const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 interface CrosshairsProps {
   preset: string;
   setFileHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
+}
+
+// Type definition for annotation metadata to include viewportId
+interface AnnotationMetadata extends Types.ViewReference {
+  toolName: string;
+  cameraPosition?: Types.Point3;
+  viewUp?: Types.Point3;
+  viewportId?: string;
+  referencedImageId?: string;
 }
 
 const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
@@ -225,7 +233,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
 
       const toolGroup = cornerstoneTools.ToolGroupManager.createToolGroup(toolGroupId);
       addManipulationBindings(toolGroup);
-      
+
       // Add all tools
       toolGroup.addTool(LengthTool.toolName);
       toolGroup.addTool(HeightTool.toolName);
@@ -276,23 +284,509 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       volumeToolGroup.addTool(TrackballRotateTool.toolName);
       volumeToolGroup.addTool(ZoomTool.toolName);
       volumeToolGroup.addTool(PanTool.toolName);
-      
+
       // Configure tools for 3D viewport
-      volumeToolGroup.setToolActive(TrackballRotateTool.toolName, { 
-        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }] // Left mouse for rotate
+      volumeToolGroup.setToolActive(TrackballRotateTool.toolName, {
+        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
       });
-      volumeToolGroup.setToolActive(ZoomTool.toolName, { 
-        bindings: [
-          { mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }  // Wheel for zoom
-        ] 
+      volumeToolGroup.setToolActive(ZoomTool.toolName, {
+        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }],
       });
-      volumeToolGroup.setToolActive(PanTool.toolName, { 
-        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Secondary }] // Right mouse for pan
+      volumeToolGroup.setToolActive(PanTool.toolName, {
+        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Secondary }],
       });
-      
+
       volumeToolGroup.addViewport(volumeViewportId, renderingEngineId);
     } catch (error) {
       console.error('Failed to reinitialize rendering engine:', error);
+    }
+  };
+
+  const getViewportElement = (viewportId: string): HTMLDivElement | null => {
+    switch (viewportId) {
+      case axialViewportId:
+        return axialViewportElementRef.current;
+      case sagittalViewportId:
+        return sagittalViewportElementRef.current;
+      case coronalViewportId:
+        return coronalViewportElementRef.current;
+      case volumeViewportId:
+        return volumeViewportElementRef.current;
+      default:
+        return null;
+    }
+  };
+
+  // Improved getSliceNumber function with fallback
+  const getSliceNumber = (imageId: string | undefined, viewportId: string): number => {
+    if (!imageId) {
+      console.warn(`No imageId provided for annotation in viewport ${viewportId}, defaulting to slice 0`);
+      return 0;
+    }
+
+    const metadata = metaData.get('imagePlaneModule', imageId);
+    if (!metadata || !metadata.imagePositionPatient) {
+      console.warn(`No valid metadata or imagePositionPatient for imageId ${imageId}, defaulting to slice 0`);
+      return 0;
+    }
+
+    const position = metadata.imagePositionPatient;
+    const volume = cache.getVolume(volumeId);
+    if (!volume) {
+      console.warn(`No volume found for volumeId ${volumeId}, defaulting to slice 0`);
+      return 0;
+    }
+
+    const { dimensions, spacing } = volume;
+    let zIndex: number;
+
+    // Adjust slice calculation based on viewport orientation
+    switch (viewportId) {
+      case axialViewportId:
+        zIndex = Math.round(position[2] / spacing[2]);
+        break;
+      case sagittalViewportId:
+        zIndex = Math.round(position[0] / spacing[0]);
+        break;
+      case coronalViewportId:
+        zIndex = Math.round(position[1] / spacing[1]);
+        break;
+      default:
+        console.warn(`Unknown viewportId ${viewportId}, defaulting to slice 0`);
+        return 0;
+    }
+
+    // Ensure zIndex is within valid range
+    return Math.min(Math.max(zIndex, 0), dimensions[2] - 1);
+  };
+
+  // Function to format annotations into the specified JSON structure
+  const formatAnnotations = (annotations: { metadata: AnnotationMetadata; data: any }[]) => {
+    const annotationsBySlice: { [key: string]: any } = {};
+
+    annotations.forEach((annotation) => {
+      const { metadata, data } = annotation;
+      if (!metadata || !metadata.toolName || !data || !data.handles) {
+        console.warn('Skipping invalid annotation:', annotation);
+        return;
+      }
+
+      const imageId = metadata.referencedImageId;
+      const viewportId = metadata.viewportId ?? axialViewportId; // Safe access with fallback
+      const sliceNumber = getSliceNumber(imageId, viewportId);
+
+      if (!annotationsBySlice[`slice_${sliceNumber}`]) {
+        annotationsBySlice[`slice_${sliceNumber}`] = {
+          length: [],
+          height: [],
+          probe: [],
+          rectangleROI: [],
+          ellipticalROI: [],
+          circleROI: [],
+          bidirectional: [],
+          angle: [],
+          cobbAngle: [],
+          arrowAnnotate: [],
+          planarFreehandROI: [],
+        };
+      }
+
+      const sliceData = annotationsBySlice[`slice_${sliceNumber}`];
+
+      switch (metadata.toolName) {
+        case LengthTool.toolName:
+          if (data.handles.points?.length >= 2) {
+            sliceData.length.push({
+              start_point: data.handles.points[0],
+              end_point: data.handles.points[1],
+            });
+          }
+          break;
+        case HeightTool.toolName:
+          if (data.handles.points?.length >= 2) {
+            sliceData.height.push({
+              start_point: data.handles.points[0],
+              end_point: data.handles.points[1],
+            });
+          }
+          break;
+        case ProbeTool.toolName:
+          sliceData.probe.push({
+            HU: data.textBox?.value || 0,
+            mean: data.textBox?.mean || 0,
+            max: data.textBox?.max || 0,
+            stdDev: data.textBox?.stdDev || 0,
+          });
+          break;
+        case RectangleROITool.toolName:
+          if (data.handles.points?.length >= 4) {
+            sliceData.rectangleROI.push({
+              area: data.textBox?.area || 0,
+              mean: data.textBox?.mean || 0,
+              max: data.textBox?.max || 0,
+              stdDev: data.textBox?.stdDev || 0,
+              coordinates: [
+                data.handles.points[0][0],
+                data.handles.points[0][1],
+                data.handles.points[2][0],
+                data.handles.points[2][1],
+              ],
+            });
+          }
+          break;
+        case EllipticalROITool.toolName:
+          if (data.handles.points?.length >= 2) {
+            sliceData.ellipticalROI.push({
+              area: data.textBox?.area || 0,
+              mean: data.textBox?.mean || 0,
+              max: data.textBox?.max || 0,
+              stdDev: data.textBox?.stdDev || 0,
+              center: data.handles.points[0],
+              radius: data.handles.points[1][0] - data.handles.points[0][0], // Approximate radius
+            });
+          }
+          break;
+        case CircleROITool.toolName:
+          if (data.handles.points?.length >= 2) {
+            sliceData.circleROI.push({
+              area: data.textBox?.area || 0,
+              mean: data.textBox?.mean || 0,
+              max: data.textBox?.max || 0,
+              stdDev: data.textBox?.stdDev || 0,
+              center: data.handles.points[0],
+              radius: data.handles.points[1][0] - data.handles.points[0][0],
+            });
+          }
+          break;
+        case BidirectionalTool.toolName:
+          if (data.handles.points?.length >= 4) {
+            sliceData.bidirectional.push({
+              length1: {
+                start: data.handles.points[0],
+                end: data.handles.points[1],
+              },
+              length2: {
+                start: data.handles.points[2],
+                end: data.handles.points[3],
+              },
+              angle: data.textBox?.angle || 0,
+            });
+          }
+          break;
+        case AngleTool.toolName:
+          if (data.handles.points?.length >= 3) {
+            sliceData.angle.push({
+              angle: data.textBox?.angle || 0,
+              points: data.handles.points,
+            });
+          }
+          break;
+        case CobbAngleTool.toolName:
+          if (data.handles.points?.length >= 4) {
+            sliceData.cobbAngle.push({
+              angle: data.textBox?.angle || 0,
+              points: data.handles.points,
+            });
+          }
+          break;
+        case ArrowAnnotateTool.toolName:
+          if (data.handles.points?.length >= 2) {
+            sliceData.arrowAnnotate.push({
+              label: data.textBox?.text || "",
+              start: data.handles.points[0],
+              end: data.handles.points[1],
+            });
+          }
+          break;
+        case PlanarFreehandROITool.toolName:
+          if (data.handles.points?.length > 0) {
+            sliceData.planarFreehandROI.push({
+              area: data.textBox?.area || 0,
+              mean: data.textBox?.mean || 0,
+              max: data.textBox?.max || 0,
+              stdDev: data.textBox?.stdDev || 0,
+              points: data.handles.points,
+            });
+          }
+          break;
+        default:
+          console.warn(`Unknown toolName ${metadata.toolName}, skipping annotation`);
+      }
+    });
+
+    return annotationsBySlice;
+  };
+
+  // Updated exportToJSON function with enhanced retrieval and debugging
+  const exportToJSON = async () => {
+    try {
+      console.log('Starting annotation export...');
+
+      const annotationToolsNames = [
+        LengthTool.toolName,
+        HeightTool.toolName,
+        ProbeTool.toolName,
+        RectangleROITool.toolName,
+        EllipticalROITool.toolName,
+        CircleROITool.toolName,
+        BidirectionalTool.toolName,
+        AngleTool.toolName,
+        CobbAngleTool.toolName,
+        ArrowAnnotateTool.toolName,
+        PlanarFreehandROITool.toolName,
+      ];
+
+      const viewports = [axialViewportId, sagittalViewportId, coronalViewportId];
+      const annotations: { metadata: AnnotationMetadata; data: any }[] = [];
+
+      // Verify tool group
+      const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+      if (!toolGroup) {
+        console.error('Tool group not found for ID:', toolGroupId);
+        alert('Tool group not found. Cannot export annotations.');
+        return;
+      }
+      console.log('Tool group found:', toolGroupId, 'Viewports:', toolGroup.viewportsInfo);
+
+      // Primary retrieval: Check each tool and viewport
+      annotationToolsNames.forEach((toolName) => {
+        viewports.forEach((viewportId) => {
+          try {
+            console.log(`Retrieving annotations for tool: ${toolName}, viewport: ${viewportId}`);
+            const toolAnnotations = cornerstoneTools.annotation.state.getAnnotations(toolName, viewportId) || [];
+            console.log(`Found ${toolAnnotations.length} annotations for ${toolName} in ${viewportId}`);
+            toolAnnotations.forEach((annotation: any) => {
+              if (annotation.metadata?.toolName) {
+                console.log(`Processing annotation:`, annotation);
+                annotation.metadata.viewportId = annotation.metadata.viewportId ?? viewportId;
+                annotations.push({
+                  metadata: annotation.metadata,
+                  data: annotation.data || {},
+                });
+              } else {
+                console.warn(`Skipping annotation with missing toolName in ${viewportId}:`, annotation);
+              }
+            });
+          } catch (error) {
+            console.warn(`Error retrieving annotations for ${toolName} in ${viewportId}:`, error);
+          }
+        });
+      });
+
+      // Fallback: Try all annotations
+      if (annotations.length === 0) {
+        console.log('No annotations found in primary retrieval, attempting to retrieve all annotations...');
+        try {
+          const allAnnotations = cornerstoneTools.annotation.state.getAllAnnotations() || [];
+          console.log(`Found ${allAnnotations.length} total annotations:`, allAnnotations);
+          allAnnotations.forEach((annotation: any) => {
+            if (annotation.metadata?.toolName) {
+              const viewportId = annotation.metadata.viewportId ?? axialViewportId;
+              if (viewports.includes(viewportId)) {
+                console.log(`Processing fallback annotation:`, annotation);
+                annotations.push({
+                  metadata: annotation.metadata,
+                  data: annotation.data || {},
+                });
+              } else {
+                console.log(`Skipping annotation with invalid viewportId: ${viewportId}`, annotation);
+              }
+            } else {
+              console.warn('Skipping annotation with missing toolName:', annotation);
+            }
+          });
+        } catch (error) {
+          console.warn('Error retrieving all annotations:', error);
+        }
+      }
+
+      // Check annotation state directly for debugging
+      if (annotations.length === 0) {
+        console.log('Checking annotation state directly...');
+        try {
+          const state = cornerstoneTools.annotation.state;
+          console.log('Annotation state:', state);
+          console.log('Tool groups:', cornerstoneTools.ToolGroupManager.getAllToolGroups());
+        } catch (error) {
+          console.warn('Error accessing annotation state:', error);
+        }
+      }
+
+      if (annotations.length === 0) {
+        console.error('No valid annotations found after all retrieval attempts.');
+        alert('No valid annotations found to export. Check console for details.');
+        return;
+      }
+
+      console.log(`Total annotations to process: ${annotations.length}`, annotations);
+
+      const formattedAnnotations = formatAnnotations(annotations);
+
+      if (Object.keys(formattedAnnotations).length === 0) {
+        console.error('No annotations could be formatted. Possible issues with annotation data.');
+        alert('No annotations could be formatted. Check console for details.');
+        return;
+      }
+
+      const jsonData = {
+        metadata: {
+          savedAt: new Date().toISOString(),
+          cornerstoneVersion: '3.x',
+          toolsVersion: '4.x',
+        },
+        annotations: formattedAnnotations,
+      };
+
+      console.log('Formatted JSON data:', jsonData);
+
+      const jsonStr = JSON.stringify(jsonData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.download = 'annotations.json';
+      link.href = url;
+      link.click();
+
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (error) {
+      console.error('Error exporting to JSON:', error);
+      alert('Failed to export annotations to JSON. Check the console for details.');
+    }
+  };
+
+  // Function to import annotations from JSON
+  const importAnnotations = async (event: Event) => {
+    const inputEvent = event as unknown as React.ChangeEvent<HTMLInputElement>;
+    const file = inputEvent.target.files?.[0];
+    if (!file) {
+      alert('No file selected.');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const jsonData = JSON.parse(text);
+
+      if (!jsonData.annotations) {
+        alert('Invalid JSON format: Missing annotations.');
+        return;
+      }
+
+      const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+      cornerstoneTools.annotation.state.removeAllAnnotations();
+
+      Object.keys(jsonData.annotations).forEach((sliceKey) => {
+        const sliceData = jsonData.annotations[sliceKey];
+        const sliceNumber = parseInt(sliceKey.replace('slice_', ''));
+
+        // Map slice number back to imageId
+        const volume = cache.getVolume(volumeId);
+        if (!volume) return;
+        const imageId = volume.imageIds[sliceNumber] || volume.imageIds[0];
+
+        Object.keys(sliceData).forEach((toolType) => {
+          sliceData[toolType].forEach((annotationData: any) => {
+            const annotation = {
+              metadata: {
+                toolName: toolType,
+                referencedImageId: imageId,
+                viewportId: axialViewportId, // Default to axial for simplicity
+              },
+              data: {
+                handles: {
+                  points: [],
+                },
+                textBox: {},
+              },
+            };
+
+            switch (toolType) {
+              case 'length':
+              case 'height':
+                annotation.data.handles.points = [
+                  annotationData.start_point,
+                  annotationData.end_point,
+                ];
+                break;
+              case 'probe':
+                annotation.data.handles.points = [annotationData.start_point || [0, 0]];
+                annotation.data.textBox = {
+                  value: annotationData.HU,
+                  mean: annotationData.mean,
+                  max: annotationData.max,
+                  stdDev: annotationData.stdDev,
+                };
+                break;
+              case 'rectangleROI':
+                annotation.data.handles.points = [
+                  [annotationData.coordinates[0], annotationData.coordinates[1]],
+                  [annotationData.coordinates[2], annotationData.coordinates[1]],
+                  [annotationData.coordinates[2], annotationData.coordinates[3]],
+                  [annotationData.coordinates[0], annotationData.coordinates[3]],
+                ];
+                annotation.data.textBox = {
+                  area: annotationData.area,
+                  mean: annotationData.mean,
+                  max: annotationData.max,
+                  stdDev: annotationData.stdDev,
+                };
+                break;
+              case 'ellipticalROI':
+              case 'circleROI':
+                annotation.data.handles.points = [
+                  annotationData.center,
+                  [annotationData.center[0] + annotationData.radius, annotationData.center[1]],
+                ];
+                annotation.data.textBox = {
+                  area: annotationData.area,
+                  mean: annotationData.mean,
+                  max: annotationData.max,
+                  stdDev: annotationData.stdDev,
+                };
+                break;
+              case 'bidirectional':
+                annotation.data.handles.points = [
+                  annotationData.length1.start,
+                  annotationData.length1.end,
+                  annotationData.length2.start,
+                  annotationData.length2.end,
+                ];
+                annotation.data.textBox = { angle: annotationData.angle };
+                break;
+              case 'angle':
+              case 'cobbAngle':
+                annotation.data.handles.points = annotationData.points;
+                annotation.data.textBox = { angle: annotationData.angle };
+                break;
+              case 'arrowAnnotate':
+                annotation.data.handles.points = [
+                  annotationData.start,
+                  annotationData.end,
+                ];
+                annotation.data.textBox = { text: annotationData.label };
+                break;
+              case 'planarFreehandROI':
+                annotation.data.handles.points = annotationData.points;
+                annotation.data.textBox = {
+                  area: annotationData.area,
+                  mean: annotationData.mean,
+                  max: annotationData.max,
+                  stdDev: annotationData.stdDev,
+                };
+                break;
+            }
+
+            cornerstoneTools.annotation.state.addAnnotation(annotation, getViewportElement(axialViewportId));
+          });
+        });
+      });
+
+      const renderingEngine = getRenderingEngine(renderingEngineId);
+      renderingEngine?.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
+    } catch (error) {
+      console.error('Error importing annotations:', error);
+      alert('Failed to import annotations from JSON');
     }
   };
 
@@ -364,6 +858,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       },
     });
 
+    // Annotation tools dropdown
     addDropdownToToolbar({
       options: { values: annotationToolsNames, defaultValue: CrosshairsTool.toolName },
       onSelectedValueChange: (newSelectedToolName) => {
@@ -379,6 +874,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       },
     });
 
+    // Blend mode dropdown
     addDropdownToToolbar({
       options: {
         values: [
@@ -421,9 +917,10 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       },
     });
 
+    // Screenshot button
     addButtonToToolbar({
       icon: <FaCamera className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Capture Screenshot" />,
-      onClick: () => {
+      onClick: async () => {
         const currentViewportId = activeViewportIdRef.current;
         if (!currentViewportId) {
           alert('Please click on a viewport first to select it.');
@@ -448,17 +945,52 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
 
         if (!element) return;
 
-        const canvas = element.querySelector('canvas');
-        if (!canvas) return;
+        try {
+          const canvas = element.querySelector('canvas');
+          const svgElement = element.querySelector('svg');
 
-        const dataUrl = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.download = `${currentViewportId}-screenshot.png`;
-        link.href = dataUrl;
-        link.click();
+          if (!canvas) return;
+
+          const compositeCanvas = document.createElement('canvas');
+          compositeCanvas.width = canvas.width;
+          compositeCanvas.height = canvas.height;
+          const ctx = compositeCanvas.getContext('2d');
+
+          ctx.drawImage(canvas, 0, 0);
+
+          if (svgElement) {
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+
+            await new Promise((resolve, reject) => {
+              const img = new Image();
+              img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(svgUrl);
+                resolve(null);
+              };
+              img.onerror = () => {
+                URL.revokeObjectURL(svgUrl);
+                reject(new Error('Failed to load annotations'));
+              };
+              img.src = svgUrl;
+            });
+          }
+
+          const dataUrl = compositeCanvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.download = `${currentViewportId}-screenshot.png`;
+          link.href = dataUrl;
+          link.click();
+        } catch (error) {
+          console.error('Error capturing screenshot:', error);
+          alert('Failed to capture image with annotations');
+        }
       },
     });
 
+    // Crosshairs button
     addButtonToToolbar({
       icon: <FaCrosshairs className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Crosshairs Tool" />,
       onClick: () => {
@@ -478,18 +1010,18 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
           } else {
             toolGroup.setToolDisabled(CrosshairsTool.toolName);
           }
-          
+
           const renderingEngine = getRenderingEngine(renderingEngineId);
           if (renderingEngine) {
             renderingEngine.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
           }
-          
+
           return newActive;
         });
       },
     });
 
-    
+    // Reset view button
     addButtonToToolbar({
       icon: <GrPowerReset className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Reset View" />,
       className: "flex items-center gap-2 bg-transparent border-0 text-white p-2 transition hover:underline hover:text-blue-400",
@@ -505,6 +1037,44 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       },
     });
 
+    // Export annotations button
+    addButtonToToolbar({
+      icon: <span className="text-white">Export JSON</span>,
+      title: "Export Annotations to JSON",
+      onClick: exportToJSON,
+    });
+
+    // Import annotations button
+    addButtonToToolbar({
+      icon: <span className="text-white">Import JSON</span>,
+      title: "Import Annotations from JSON",
+      onClick: () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = importAnnotations as unknown as (this: GlobalEventHandlers, ev: Event) => any;
+        input.click();
+      },
+    });
+
+    // Delete annotation button
+    addButtonToToolbar({
+      icon: <span className="text-white">Delete Annotation</span>,
+      title: "Delete Selected Annotation",
+      onClick: () => {
+        const selectedAnnotations = cornerstoneTools.annotation.selection.getAnnotationsSelected();
+        if (selectedAnnotations && selectedAnnotations.length > 0) {
+          const annotationUID = selectedAnnotations[0];
+          cornerstoneTools.annotation.state.removeAnnotation(annotationUID);
+          const renderingEngine = getRenderingEngine(renderingEngineId);
+          renderingEngine?.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
+        } else {
+          alert('No annotation selected. Please select an annotation to delete.');
+        }
+      },
+    });
+
+    // Rotate view button
     addButtonToToolbar({
       icon: <AiOutlineRotateRight className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Rotate View" />,
       onClick: () => rotateViewport(90),
@@ -569,11 +1139,11 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       return;
     }
 
-    const mhaFile = Array.from(files).find(file => 
-      file.name.toLowerCase().endsWith('.mha') || 
+    const mhaFile = Array.from(files).find(file =>
+      file.name.toLowerCase().endsWith('.mha') ||
       file.name.toLowerCase().endsWith('.mhd')
     );
-    
+
     if (mhaFile) {
       await handleMhaFile(mhaFile);
       return;
