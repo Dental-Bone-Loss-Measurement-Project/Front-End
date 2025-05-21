@@ -63,21 +63,6 @@ const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 const MAX_CACHE_SIZE_MB = 2048; // 2GB cache
 const BATCH_SIZE = 50; // Process 50 files at a time
 const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
-const CT_BONE_ONLY_PRESET = {
-  name: 'CT-Bone-Only',
-  description: 'Shows only bone structures with no soft tissue',
-  window: 3000,
-  level: 700,
-  transferFunction: {
-    voiRange: { lower: 300, upper: 3000 },
-    opalNodes: [
-      { value: -1000, opacity: 0 },
-      { value: 200, opacity: 0 },
-      { value: 300, opacity: 0.8 },
-      { value: 1000, opacity: 1 }
-    ]
-  }
-};
 
 interface CrosshairsProps {
   preset: string;
@@ -240,6 +225,8 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
 
       const toolGroup = cornerstoneTools.ToolGroupManager.createToolGroup(toolGroupId);
       addManipulationBindings(toolGroup);
+      
+      // Add all tools
       toolGroup.addTool(LengthTool.toolName);
       toolGroup.addTool(HeightTool.toolName);
       toolGroup.addTool(ProbeTool.toolName);
@@ -261,10 +248,14 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
           opacity: 0.8,
           handleRadius: 9,
         },
+        configuration: {
+          hideLinesWhenPassive: true,
+          hideLinesWhenDisabled: true,
+        },
       });
-      toolGroup.setToolActive(CrosshairsTool.toolName, {
-        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }],
-      });
+
+      // Set all tools to disabled initially, including crosshairs
+      toolGroup.setToolDisabled(CrosshairsTool.toolName);
       toolGroup.setToolPassive(LengthTool.toolName);
       toolGroup.setToolPassive(HeightTool.toolName);
       toolGroup.setToolPassive(ProbeTool.toolName);
@@ -276,6 +267,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       toolGroup.setToolPassive(CobbAngleTool.toolName);
       toolGroup.setToolPassive(ArrowAnnotateTool.toolName);
       toolGroup.setToolPassive(PlanarFreehandROITool.toolName);
+
       toolGroup.addViewport(axialViewportId, renderingEngineId);
       toolGroup.addViewport(sagittalViewportId, renderingEngineId);
       toolGroup.addViewport(coronalViewportId, renderingEngineId);
@@ -284,9 +276,20 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       volumeToolGroup.addTool(TrackballRotateTool.toolName);
       volumeToolGroup.addTool(ZoomTool.toolName);
       volumeToolGroup.addTool(PanTool.toolName);
-      volumeToolGroup.setToolActive(TrackballRotateTool.toolName, { bindings: [{ mouseButton: 1 }] });
-      volumeToolGroup.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: 3 }] });
-      volumeToolGroup.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: 2 }] });
+      
+      // Configure tools for 3D viewport
+      volumeToolGroup.setToolActive(TrackballRotateTool.toolName, { 
+        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Primary }] // Left mouse for rotate
+      });
+      volumeToolGroup.setToolActive(ZoomTool.toolName, { 
+        bindings: [
+          { mouseButton: cornerstoneTools.Enums.MouseBindings.Wheel }  // Wheel for zoom
+        ] 
+      });
+      volumeToolGroup.setToolActive(PanTool.toolName, { 
+        bindings: [{ mouseButton: cornerstoneTools.Enums.MouseBindings.Secondary }] // Right mouse for pan
+      });
+      
       volumeToolGroup.addViewport(volumeViewportId, renderingEngineId);
     } catch (error) {
       console.error('Failed to reinitialize rendering engine:', error);
@@ -475,6 +478,12 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
           } else {
             toolGroup.setToolDisabled(CrosshairsTool.toolName);
           }
+          
+          const renderingEngine = getRenderingEngine(renderingEngineId);
+          if (renderingEngine) {
+            renderingEngine.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
+          }
+          
           return newActive;
         });
       },
@@ -647,6 +656,14 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
+      // Ensure crosshairs are completely disabled after volume load
+      const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+      toolGroup.setToolDisabled(CrosshairsTool.toolName);
+      setIsCrosshairsActive(false);
+
+      // Force a render to ensure crosshairs are hidden
+      renderingEngine.renderViewports(viewportIds);
+
       // Apply preset only to the 3D viewport
       const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
       if (volumeViewport) {
@@ -663,8 +680,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
           volumeViewport.setProperties({ preset });
         }
       }
-
-      renderingEngine.renderViewports(viewportIds);
     } catch (error) {
       console.error('Error loading volume:', error);
       alert('Failed to load DICOM files. Please ensure all files are valid and try again.');
@@ -760,6 +775,14 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
+      // Ensure crosshairs are completely disabled after volume load
+      const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+      toolGroup.setToolDisabled(CrosshairsTool.toolName);
+      setIsCrosshairsActive(false);
+
+      // Force a render to ensure crosshairs are hidden
+      renderingEngine.renderViewports(viewportIds);
+
       // Apply preset only to the 3D viewport
       const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
       if (volumeViewport) {
@@ -776,9 +799,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
           volumeViewport.setProperties({ preset });
         }
       }
-
-      renderingEngine.renderViewports(viewportIds);
-      console.log('MHA file successfully rendered');
     } catch (error) {
       console.error('Error processing MHA file:', error);
       alert(`Failed to process MHA file: ${error.message || 'Unknown error'}`);
@@ -839,8 +859,37 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       setUpSynchronizers();
     };
 
-    setup();
-  }, []);
+    setup().then(() => {
+      console.log('Rendering engine and viewports set up');
+    }).catch((error) => {
+      console.error('Setup failed:', error);
+    });
+
+    // Set up the file handler when component mounts
+    setFileHandler(handleFileSelect);
+
+    return () => {
+      const canvases = [
+        axialViewportElementRef.current?.querySelector('canvas'),
+        sagittalViewportElementRef.current?.querySelector('canvas'),
+        coronalViewportElementRef.current?.querySelector('canvas'),
+        volumeViewportElementRef.current?.querySelector('canvas'),
+      ];
+      canvases.forEach((canvas) => {
+        if (canvas) {
+          canvas.removeEventListener('webglcontextlost', handleContextLost);
+          canvas.removeEventListener('webglcontextrestored', () => {});
+        }
+      });
+    };
+  }, [
+    axialViewportElementRef,
+    sagittalViewportElementRef,
+    coronalViewportElementRef,
+    volumeViewportElementRef,
+    running,
+    setFileHandler,
+  ]);
 
   useEffect(() => {
     const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -867,11 +916,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       console.error('Error applying preset to 3D viewport:', error);
     }
   }, [preset]);
-
-  // Set up the file handler when component mounts
-  useEffect(() => {
-    setFileHandler(handleFileSelect);
-  }, [setFileHandler]);
 
   return (
     <div className="bg-black">
