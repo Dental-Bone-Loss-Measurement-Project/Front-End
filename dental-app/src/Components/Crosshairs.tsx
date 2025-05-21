@@ -62,7 +62,6 @@ const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 // Cache settings for large series
 const MAX_CACHE_SIZE_MB = 2048; // 2GB cache
 const BATCH_SIZE = 50; // Process 50 files at a time
-const BATCH_SIZE = 50; // Process 50 files at a time
 const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 const CT_BONE_ONLY_PRESET = {
   name: 'CT-Bone-Only',
@@ -798,12 +797,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       await csToolsInit();
       await dicomImageLoaderInit({
         maxWebWorkers: navigator.hardwareConcurrency || 4,
-        taskConfiguration: {
-          decodeTask: {
-            initializeCodecsOnStartup: true,
-            strict: false,
-          },
-        },
       });
 
       cache.setMaxCacheSize(MAX_CACHE_SIZE_MB * 1024 * 1024);
@@ -846,33 +839,8 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       setUpSynchronizers();
     };
 
-    setup().then(() => {
-      console.log('Rendering engine and viewports set up');
-    }).catch((error) => {
-      console.error('Setup failed:', error);
-    });
-
-    return () => {
-      const canvases = [
-        axialViewportElementRef.current?.querySelector('canvas'),
-        sagittalViewportElementRef.current?.querySelector('canvas'),
-        coronalViewportElementRef.current?.querySelector('canvas'),
-        volumeViewportElementRef.current?.querySelector('canvas'),
-      ];
-      canvases.forEach((canvas) => {
-        if (canvas) {
-          canvas.removeEventListener('webglcontextlost', handleContextLost);
-          canvas.removeEventListener('webglcontextrestored', () => {});
-        }
-      });
-    };
-  }, [
-    axialViewportElementRef,
-    sagittalViewportElementRef,
-    coronalViewportElementRef,
-    volumeViewportElementRef,
-    running,
-  ]);
+    setup();
+  }, []);
 
   useEffect(() => {
     const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -899,6 +867,11 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       console.error('Error applying preset to 3D viewport:', error);
     }
   }, [preset]);
+
+  // Set up the file handler when component mounts
+  useEffect(() => {
+    setFileHandler(handleFileSelect);
+  }, [setFileHandler]);
 
   return (
     <div className="bg-black">
