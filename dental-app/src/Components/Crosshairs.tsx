@@ -66,6 +66,9 @@ const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 interface CrosshairsProps {
   preset: string;
   setFileHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
+  setExportHandler: (handler: () => void) => void;
+  setImportHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
+  setIsImageLoaded: (isLoaded: boolean) => void;
 }
 
 // Type definition for annotation metadata to include viewportId
@@ -77,7 +80,13 @@ interface AnnotationMetadata extends Types.ViewReference {
   referencedImageId?: string;
 }
 
-const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
+const CrossHairs: React.FC<CrosshairsProps> = ({ 
+  preset, 
+  setFileHandler,
+  setExportHandler,
+  setImportHandler,
+  setIsImageLoaded 
+}) => {
   const [isPanActive, setIsPanActive] = useState(false);
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
   const [isZoomActive, setIsZoomActive] = useState(false);
@@ -372,146 +381,69 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       }
 
       const imageId = metadata.referencedImageId;
-      const viewportId = metadata.viewportId ?? axialViewportId; // Safe access with fallback
+      const viewportId = metadata.viewportId ?? axialViewportId;
       const sliceNumber = getSliceNumber(imageId, viewportId);
 
       if (!annotationsBySlice[`slice_${sliceNumber}`]) {
-        annotationsBySlice[`slice_${sliceNumber}`] = {
-          length: [],
-          height: [],
-          probe: [],
-          rectangleROI: [],
-          ellipticalROI: [],
-          circleROI: [],
-          bidirectional: [],
-          angle: [],
-          cobbAngle: [],
-          arrowAnnotate: [],
-          planarFreehandROI: [],
-        };
+        annotationsBySlice[`slice_${sliceNumber}`] = {};
       }
 
       const sliceData = annotationsBySlice[`slice_${sliceNumber}`];
+      const toolType = metadata.toolName;
 
-      switch (metadata.toolName) {
-        case LengthTool.toolName:
-          if (data.handles.points?.length >= 2) {
-            sliceData.length.push({
-              start_point: data.handles.points[0],
-              end_point: data.handles.points[1],
-            });
-          }
-          break;
-        case HeightTool.toolName:
-          if (data.handles.points?.length >= 2) {
-            sliceData.height.push({
-              start_point: data.handles.points[0],
-              end_point: data.handles.points[1],
-            });
-          }
-          break;
-        case ProbeTool.toolName:
-          sliceData.probe.push({
-            HU: data.textBox?.value || 0,
-            mean: data.textBox?.mean || 0,
-            max: data.textBox?.max || 0,
-            stdDev: data.textBox?.stdDev || 0,
-          });
-          break;
-        case RectangleROITool.toolName:
-          if (data.handles.points?.length >= 4) {
-            sliceData.rectangleROI.push({
-              area: data.textBox?.area || 0,
-              mean: data.textBox?.mean || 0,
-              max: data.textBox?.max || 0,
-              stdDev: data.textBox?.stdDev || 0,
-              coordinates: [
-                data.handles.points[0][0],
-                data.handles.points[0][1],
-                data.handles.points[2][0],
-                data.handles.points[2][1],
-              ],
-            });
-          }
-          break;
-        case EllipticalROITool.toolName:
-          if (data.handles.points?.length >= 2) {
-            sliceData.ellipticalROI.push({
-              area: data.textBox?.area || 0,
-              mean: data.textBox?.mean || 0,
-              max: data.textBox?.max || 0,
-              stdDev: data.textBox?.stdDev || 0,
-              center: data.handles.points[0],
-              radius: data.handles.points[1][0] - data.handles.points[0][0], // Approximate radius
-            });
-          }
-          break;
-        case CircleROITool.toolName:
-          if (data.handles.points?.length >= 2) {
-            sliceData.circleROI.push({
-              area: data.textBox?.area || 0,
-              mean: data.textBox?.mean || 0,
-              max: data.textBox?.max || 0,
-              stdDev: data.textBox?.stdDev || 0,
-              center: data.handles.points[0],
-              radius: data.handles.points[1][0] - data.handles.points[0][0],
-            });
-          }
-          break;
-        case BidirectionalTool.toolName:
-          if (data.handles.points?.length >= 4) {
-            sliceData.bidirectional.push({
-              length1: {
-                start: data.handles.points[0],
-                end: data.handles.points[1],
-              },
-              length2: {
-                start: data.handles.points[2],
-                end: data.handles.points[3],
-              },
-              angle: data.textBox?.angle || 0,
-            });
-          }
-          break;
-        case AngleTool.toolName:
-          if (data.handles.points?.length >= 3) {
-            sliceData.angle.push({
-              angle: data.textBox?.angle || 0,
-              points: data.handles.points,
-            });
-          }
-          break;
-        case CobbAngleTool.toolName:
-          if (data.handles.points?.length >= 4) {
-            sliceData.cobbAngle.push({
-              angle: data.textBox?.angle || 0,
-              points: data.handles.points,
-            });
-          }
-          break;
-        case ArrowAnnotateTool.toolName:
-          if (data.handles.points?.length >= 2) {
-            sliceData.arrowAnnotate.push({
-              label: data.textBox?.text || "",
-              start: data.handles.points[0],
-              end: data.handles.points[1],
-            });
-          }
-          break;
-        case PlanarFreehandROITool.toolName:
-          if (data.handles.points?.length > 0) {
-            sliceData.planarFreehandROI.push({
-              area: data.textBox?.area || 0,
-              mean: data.textBox?.mean || 0,
-              max: data.textBox?.max || 0,
-              stdDev: data.textBox?.stdDev || 0,
-              points: data.handles.points,
-            });
-          }
-          break;
-        default:
-          console.warn(`Unknown toolName ${metadata.toolName}, skipping annotation`);
+      // Add viewport-specific information
+      if (!sliceData[toolType]) {
+        sliceData[toolType] = [];
       }
+
+      // Get viewport information for proper restoration
+      const viewport = getRenderingEngine(renderingEngineId)?.getViewport(viewportId);
+      const camera = viewport?.getCamera();
+      const viewPlaneNormal = camera?.viewPlaneNormal;
+      const viewUp = camera?.viewUp;
+
+      // Create tool-specific annotation data
+      const annotationData = {
+        points: data.handles.points,
+        viewPlaneNormal,
+        viewUp,
+        viewportId,
+        imageId,
+        cachedStats: data.cachedStats || {},
+        // Add tool-specific data
+        ...(toolType === 'arrowAnnotate' && { label: data.label }),
+        ...(toolType === 'length' && { length: data.cachedStats?.length }),
+        ...(toolType === 'height' && { height: data.cachedStats?.height }),
+        ...(toolType === 'probe' && {
+          HU: data.cachedStats?.value,
+          mean: data.cachedStats?.mean,
+          max: data.cachedStats?.max,
+          stdDev: data.cachedStats?.stdDev,
+        }),
+        ...(toolType === 'rectangleROI' && {
+          area: data.cachedStats?.area,
+          mean: data.cachedStats?.mean,
+          max: data.cachedStats?.max,
+          stdDev: data.cachedStats?.stdDev,
+        }),
+        ...(toolType === 'ellipticalROI' && {
+          area: data.cachedStats?.area,
+          mean: data.cachedStats?.mean,
+          max: data.cachedStats?.max,
+          stdDev: data.cachedStats?.stdDev,
+        }),
+        ...(toolType === 'circleROI' && {
+          area: data.cachedStats?.area,
+          mean: data.cachedStats?.mean,
+          max: data.cachedStats?.max,
+          stdDev: data.cachedStats?.stdDev,
+        }),
+        ...(toolType === 'bidirectional' && { angle: data.cachedStats?.angle }),
+        ...(toolType === 'angle' && { angle: data.cachedStats?.angle }),
+        ...(toolType === 'cobbAngle' && { angle: data.cachedStats?.angle }),
+      };
+
+      sliceData[toolType].push(annotationData);
     });
 
     return annotationsBySlice;
@@ -655,14 +587,40 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
     }
   };
 
-  // Function to import annotations from JSON
-  const importAnnotations = async (event: Event) => {
-    const inputEvent = event as unknown as React.ChangeEvent<HTMLInputElement>;
-    const file = inputEvent.target.files?.[0];
-    if (!file) {
-      alert('No file selected.');
-      return;
+  // Function to validate if a slice exists in the current volume
+  const validateSliceExists = (sliceNumber: number, viewportId: string): boolean => {
+    const volume = cache.getVolume(volumeId);
+    if (!volume) {
+      console.error('No volume found for validation');
+      return false;
     }
+
+    const { dimensions } = volume;
+    let maxSlices: number;
+
+    // Get max slices based on viewport orientation
+    switch (viewportId) {
+      case axialViewportId:
+        maxSlices = dimensions[2];
+        break;
+      case sagittalViewportId:
+        maxSlices = dimensions[0];
+        break;
+      case coronalViewportId:
+        maxSlices = dimensions[1];
+        break;
+      default:
+        console.error('Invalid viewport ID for validation');
+        return false;
+    }
+
+    return sliceNumber >= 0 && sliceNumber < maxSlices;
+  };
+
+  // Function to import annotations from JSON
+  const importAnnotations = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
     try {
       const text = await file.text();
@@ -673,120 +631,174 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
         return;
       }
 
+      // Get current volume info
+      const volume = cache.getVolume(volumeId);
+      if (!volume) {
+        alert('No DICOM series loaded. Please load a DICOM series first.');
+        return;
+      }
+
+      // Get tool group and enable all annotation tools
       const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
+      if (!toolGroup) {
+        console.error('Tool group not found');
+        return;
+      }
+
+      // Enable all annotation tools for editing
+      const annotationTools = [
+        LengthTool.toolName,
+        HeightTool.toolName,
+        ProbeTool.toolName,
+        RectangleROITool.toolName,
+        EllipticalROITool.toolName,
+        CircleROITool.toolName,
+        BidirectionalTool.toolName,
+        AngleTool.toolName,
+        CobbAngleTool.toolName,
+        ArrowAnnotateTool.toolName,
+        PlanarFreehandROITool.toolName,
+      ];
+
+      // Set all tools to passive mode
+      annotationTools.forEach(toolName => {
+        toolGroup.setToolPassive(toolName);
+      });
+
+      // Clear existing annotations
       cornerstoneTools.annotation.state.removeAllAnnotations();
 
+      // Import annotations
       Object.keys(jsonData.annotations).forEach((sliceKey) => {
-        const sliceData = jsonData.annotations[sliceKey];
         const sliceNumber = parseInt(sliceKey.replace('slice_', ''));
+        const sliceData = jsonData.annotations[sliceKey];
 
-        // Map slice number back to imageId
-        const volume = cache.getVolume(volumeId);
-        if (!volume) return;
-        const imageId = volume.imageIds[sliceNumber] || volume.imageIds[0];
+        // Process each viewport
+        [axialViewportId, sagittalViewportId, coronalViewportId].forEach(viewportId => {
+          if (!validateSliceExists(sliceNumber, viewportId)) return;
 
-        Object.keys(sliceData).forEach((toolType) => {
-          sliceData[toolType].forEach((annotationData: any) => {
-            const annotation = {
-              metadata: {
-                toolName: toolType,
-                referencedImageId: imageId,
-                viewportId: axialViewportId, // Default to axial for simplicity
-              },
-              data: {
-                handles: {
-                  points: [],
-                },
-                textBox: {},
-              },
-            };
+          const imageId = volume.imageIds[sliceNumber];
+          if (!imageId) return;
 
-            switch (toolType) {
-              case 'length':
-              case 'height':
-                annotation.data.handles.points = [
-                  annotationData.start_point,
-                  annotationData.end_point,
-                ];
-                break;
-              case 'probe':
-                annotation.data.handles.points = [annotationData.start_point || [0, 0]];
-                annotation.data.textBox = {
-                  value: annotationData.HU,
-                  mean: annotationData.mean,
-                  max: annotationData.max,
-                  stdDev: annotationData.stdDev,
-                };
-                break;
-              case 'rectangleROI':
-                annotation.data.handles.points = [
-                  [annotationData.coordinates[0], annotationData.coordinates[1]],
-                  [annotationData.coordinates[2], annotationData.coordinates[1]],
-                  [annotationData.coordinates[2], annotationData.coordinates[3]],
-                  [annotationData.coordinates[0], annotationData.coordinates[3]],
-                ];
-                annotation.data.textBox = {
-                  area: annotationData.area,
-                  mean: annotationData.mean,
-                  max: annotationData.max,
-                  stdDev: annotationData.stdDev,
-                };
-                break;
-              case 'ellipticalROI':
-              case 'circleROI':
-                annotation.data.handles.points = [
-                  annotationData.center,
-                  [annotationData.center[0] + annotationData.radius, annotationData.center[1]],
-                ];
-                annotation.data.textBox = {
-                  area: annotationData.area,
-                  mean: annotationData.mean,
-                  max: annotationData.max,
-                  stdDev: annotationData.stdDev,
-                };
-                break;
-              case 'bidirectional':
-                annotation.data.handles.points = [
-                  annotationData.length1.start,
-                  annotationData.length1.end,
-                  annotationData.length2.start,
-                  annotationData.length2.end,
-                ];
-                annotation.data.textBox = { angle: annotationData.angle };
-                break;
-              case 'angle':
-              case 'cobbAngle':
-                annotation.data.handles.points = annotationData.points;
-                annotation.data.textBox = { angle: annotationData.angle };
-                break;
-              case 'arrowAnnotate':
-                annotation.data.handles.points = [
-                  annotationData.start,
-                  annotationData.end,
-                ];
-                annotation.data.textBox = { text: annotationData.label };
-                break;
-              case 'planarFreehandROI':
-                annotation.data.handles.points = annotationData.points;
-                annotation.data.textBox = {
-                  area: annotationData.area,
-                  mean: annotationData.mean,
-                  max: annotationData.max,
-                  stdDev: annotationData.stdDev,
-                };
-                break;
-            }
+          Object.keys(sliceData).forEach((toolType) => {
+            sliceData[toolType].forEach((annotationData: any) => {
+              try {
+                // Get the appropriate tool instance
+                const toolInstance = toolGroup.getToolInstance(toolType);
+                if (!toolInstance) {
+                  console.warn(`Tool instance not found for ${toolType}`);
+                  return;
+                }
 
-            cornerstoneTools.annotation.state.addAnnotation(annotation, getViewportElement(axialViewportId));
+                // Create annotation using tool-specific hydration
+                let annotation;
+                switch (toolType) {
+                  case LengthTool.toolName:
+                    annotation = LengthTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case HeightTool.toolName:
+                    annotation = HeightTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case ProbeTool.toolName:
+                    annotation = ProbeTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case RectangleROITool.toolName:
+                    annotation = RectangleROITool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case EllipticalROITool.toolName:
+                    annotation = EllipticalROITool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case CircleROITool.toolName:
+                    annotation = CircleROITool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case BidirectionalTool.toolName:
+                    annotation = BidirectionalTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case AngleTool.toolName:
+                    annotation = AngleTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case CobbAngleTool.toolName:
+                    annotation = CobbAngleTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  case ArrowAnnotateTool.toolName:
+                    annotation = ArrowAnnotateTool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                      label: annotationData.label,
+                    });
+                    break;
+                  case PlanarFreehandROITool.toolName:
+                    annotation = PlanarFreehandROITool.hydrate(viewportId, annotationData.points, {
+                      referencedImageId: imageId,
+                      viewplaneNormal: annotationData.viewPlaneNormal,
+                      viewUp: annotationData.viewUp,
+                    });
+                    break;
+                  default:
+                    console.warn(`Unknown tool type: ${toolType}`);
+                    return;
+                }
+
+                // Add cached stats if available
+                if (annotationData.cachedStats) {
+                  annotation.data.cachedStats = annotationData.cachedStats;
+                }
+
+                // Add the annotation to the state
+                cornerstoneTools.annotation.state.addAnnotation(annotation, getViewportElement(viewportId));
+
+              } catch (error) {
+                console.warn(`Failed to add annotation for ${toolType} in ${viewportId}:`, error);
+              }
+            });
           });
         });
       });
 
+      // Render all viewports
       const renderingEngine = getRenderingEngine(renderingEngineId);
       renderingEngine?.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
+
     } catch (error) {
       console.error('Error importing annotations:', error);
-      alert('Failed to import annotations from JSON');
+      alert('Failed to import annotations. Please ensure the file is valid and matches the current DICOM series.');
     }
   };
 
@@ -1037,43 +1049,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
       },
     });
 
-    // Export annotations button
-    addButtonToToolbar({
-      icon: <span className="text-white">Export JSON</span>,
-      title: "Export Annotations to JSON",
-      onClick: exportToJSON,
-    });
-
-    // Import annotations button
-    addButtonToToolbar({
-      icon: <span className="text-white">Import JSON</span>,
-      title: "Import Annotations from JSON",
-      onClick: () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = importAnnotations as unknown as (this: GlobalEventHandlers, ev: Event) => any;
-        input.click();
-      },
-    });
-
-    // Delete annotation button
-    addButtonToToolbar({
-      icon: <span className="text-white">Delete Annotation</span>,
-      title: "Delete Selected Annotation",
-      onClick: () => {
-        const selectedAnnotations = cornerstoneTools.annotation.selection.getAnnotationsSelected();
-        if (selectedAnnotations && selectedAnnotations.length > 0) {
-          const annotationUID = selectedAnnotations[0];
-          cornerstoneTools.annotation.state.removeAnnotation(annotationUID);
-          const renderingEngine = getRenderingEngine(renderingEngineId);
-          renderingEngine?.renderViewports([axialViewportId, sagittalViewportId, coronalViewportId]);
-        } else {
-          alert('No annotation selected. Please select an annotation to delete.');
-        }
-      },
-    });
-
     // Rotate view button
     addButtonToToolbar({
       icon: <AiOutlineRotateRight className="w-6 h-6 text-white hover:underline hover:opacity-80 cursor-pointer" title="Rotate View" />,
@@ -1136,16 +1111,6 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
     const files = event.target.files;
     if (!files || files.length === 0) {
       alert('No files selected.');
-      return;
-    }
-
-    const mhaFile = Array.from(files).find(file =>
-      file.name.toLowerCase().endsWith('.mha') ||
-      file.name.toLowerCase().endsWith('.mhd')
-    );
-
-    if (mhaFile) {
-      await handleMhaFile(mhaFile);
       return;
     }
 
@@ -1250,131 +1215,13 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
           volumeViewport.setProperties({ preset });
         }
       }
+
+      // After successful volume load
+      setIsImageLoaded(true);
     } catch (error) {
       console.error('Error loading volume:', error);
+      setIsImageLoaded(false);
       alert('Failed to load DICOM files. Please ensure all files are valid and try again.');
-    }
-  };
-
-  const handleMhaFile = async (file: File) => {
-    try {
-      setIsLoading(true);
-      setLoadingMessage('Uploading and converting MHA to DICOM series...');
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await axios.post('http://localhost:8000/upload-volume', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
-        timeout: 300000, // 5 minutes timeout for large files
-      });
-
-      if (!response.data) {
-        throw new Error('No data returned from server');
-      }
-
-      const { dicomBaseUrl, sliceCount, dimensions } = response.data;
-
-      if (sliceCount < 1) {
-        throw new Error('No DICOM slices generated by the server');
-      }
-
-      console.log(`Received ${sliceCount} DICOM files from server with dimensions: ${dimensions.x}x${dimensions.y}x${dimensions.z}`);
-
-      const imageIds: { id: string; fileName: string }[] = [];
-      const validImageIds: string[] = [];
-      const baseUrl = `http://localhost:8000${dicomBaseUrl}`;
-
-      for (let i = 0; i < sliceCount; i++) {
-        const fileName = `slice_${i.toString().padStart(4, '0')}.dcm`;
-        const imageId = `wadouri:${baseUrl}${fileName}`;
-        imageIds.push({ id: imageId, fileName });
-      }
-
-      setLoadingMessage('Loading DICOM slices...');
-      for (let i = 0; i < imageIds.length; i += BATCH_SIZE) {
-        const batch = imageIds.slice(i, i + BATCH_SIZE);
-        await Promise.all(
-          batch.map(async ({ id: imageId, fileName }) => {
-            try {
-              await imageLoader.loadImage(imageId);
-              const imagePixelModule = metaData.get('imagePixelModule', imageId);
-              if (imagePixelModule && typeof imagePixelModule.pixelRepresentation !== 'undefined') {
-                validImageIds.push(imageId);
-              } else {
-                console.warn(`Skipping imageId ${imageId} (file: ${fileName}): Missing or invalid metadata.`, {
-                  imagePixelModule,
-                });
-              }
-            } catch (error) {
-              console.warn(`Skipping imageId ${imageId} (file: ${fileName}) due to load error:`, error);
-            }
-          })
-        );
-        cache.purgeCache();
-        console.log('Cache size after batch:', cache.getCacheSize() / (1024 * 1024), 'MB');
-      }
-
-      if (validImageIds.length === 0) {
-        throw new Error('No valid DICOM files with required metadata were found');
-      }
-
-      setLoadingMessage('Creating volume...');
-      try {
-        if (cache.getVolumeLoadObject(volumeId)) {
-          cache.removeVolumeLoadObject(volumeId);
-        }
-      } catch (error) {
-        console.warn(`Failed to remove volume ${volumeId} from cache:`, error);
-      }
-
-      const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds: validImageIds });
-      await volume.load();
-
-      const renderingEngine = getRenderingEngine(renderingEngineId);
-      if (!renderingEngine) {
-        throw new Error('Rendering engine not found');
-      }
-
-      setLoadingMessage('Rendering volume...');
-      await setVolumesForViewports(
-        renderingEngine,
-        [{ volumeId, textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0 }],
-        [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
-      );
-
-      // Ensure crosshairs are completely disabled after volume load
-      const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-      toolGroup.setToolDisabled(CrosshairsTool.toolName);
-      setIsCrosshairsActive(false);
-
-      // Force a render to ensure crosshairs are hidden
-      renderingEngine.renderViewports(viewportIds);
-
-      // Apply preset only to the 3D viewport
-      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
-      if (volumeViewport) {
-        if (preset === 'CT-Bone-Only') {
-          volumeViewport.setProperties({
-            voiRange: { lower: 300, upper: 3000 },
-            colormap: csRenderCore.utilities.colormap.getColormap('white'),
-            preset: undefined,
-            VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
-            invert: false,
-            interpolationType: Enums.InterpolationType.NEAREST
-          });
-        } else {
-          volumeViewport.setProperties({ preset });
-        }
-      }
-    } catch (error) {
-      console.error('Error processing MHA file:', error);
-      alert(`Failed to process MHA file: ${error.message || 'Unknown error'}`);
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage('Processing...');
     }
   };
 
@@ -1438,6 +1285,12 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
     // Set up the file handler when component mounts
     setFileHandler(handleFileSelect);
 
+    // Set up the export handler when component mounts
+    setExportHandler(exportToJSON);
+
+    // Set up the import handler when component mounts
+    setImportHandler(importAnnotations);
+
     return () => {
       const canvases = [
         axialViewportElementRef.current?.querySelector('canvas'),
@@ -1459,6 +1312,8 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset, setFileHandler }) => {
     volumeViewportElementRef,
     running,
     setFileHandler,
+    setExportHandler,
+    setImportHandler,
   ]);
 
   useEffect(() => {
