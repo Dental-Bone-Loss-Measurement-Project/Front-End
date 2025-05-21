@@ -556,12 +556,22 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
-      viewportIds.forEach((viewportId) => {
-        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
-        if (viewport) {
-          viewport.setProperties({ preset });
+      // Apply preset only to the 3D viewport
+      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
+      if (volumeViewport) {
+        if (preset === 'CT-Bone-Only') {
+          volumeViewport.setProperties({
+            voiRange: { lower: 300, upper: 3000 },
+            colormap: csRenderCore.utilities.colormap.getColormap('white'),
+            preset: undefined,
+            VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
+            invert: false,
+            interpolationType: Enums.InterpolationType.NEAREST
+          });
+        } else {
+          volumeViewport.setProperties({ preset });
         }
-      });
+      }
 
       renderingEngine.renderViewports(viewportIds);
     } catch (error) {
@@ -659,23 +669,22 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
-      viewportIds.forEach((viewportId) => {
-        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
-        if (viewport) {
-          if (preset === 'CT-Bone-Only') {
-            viewport.setProperties({
-              voiRange: { lower: 300, upper: 3000 },
-              colormap: csRenderCore.utilities.colormap.getColormap('white'),
-              preset: undefined,
-              VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
-              invert: false,
-              interpolationType: Enums.InterpolationType.NEAREST
-            });
-          } else {
-            viewport.setProperties({ preset });
-          }
+      // Apply preset only to the 3D viewport
+      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
+      if (volumeViewport) {
+        if (preset === 'CT-Bone-Only') {
+          volumeViewport.setProperties({
+            voiRange: { lower: 300, upper: 3000 },
+            colormap: csRenderCore.utilities.colormap.getColormap('white'),
+            preset: undefined,
+            VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
+            invert: false,
+            interpolationType: Enums.InterpolationType.NEAREST
+          });
+        } else {
+          volumeViewport.setProperties({ preset });
         }
-      });
+      }
 
       renderingEngine.renderViewports(viewportIds);
       console.log('MHA file successfully rendered');
@@ -766,17 +775,10 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
     if (!renderingEngine) return;
 
     try {
-      viewportIds.forEach((viewportId) => {
-        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
-        if (!viewport) return;
-
-        if (!cache.getVolumeLoadObject(volumeId)) {
-          console.log('Volume not loaded yet, cannot apply preset');
-          return;
-        }
-
+      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
+      if (volumeViewport && cache.getVolumeLoadObject(volumeId)) {
         if (preset === 'CT-Bone-Only') {
-          viewport.setProperties({
+          volumeViewport.setProperties({
             voiRange: { lower: 300, upper: 3000 },
             colormap: csRenderCore.utilities.colormap.getColormap('white'),
             preset: undefined,
@@ -785,14 +787,12 @@ const CrossHairs: React.FC<CrosshairsProps> = ({ preset }) => {
             interpolationType: Enums.InterpolationType.NEAREST
           });
         } else {
-          viewport.setProperties({ preset });
+          volumeViewport.setProperties({ preset });
         }
-      });
-
-      renderingEngine.renderViewports(viewportIds);
-      console.log(`Applied preset: ${preset} to all viewports`);
+        volumeViewport.render();
+      }
     } catch (error) {
-      console.error('Error applying preset:', error);
+      console.error('Error applying preset to 3D viewport:', error);
     }
   }, [preset]);
 

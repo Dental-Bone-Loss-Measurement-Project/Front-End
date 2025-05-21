@@ -1,5 +1,7 @@
 // Header.tsx
 import React from 'react';
+import { CONSTANTS } from '@cornerstonejs/core';
+
 interface HeaderProps {
   preset: string;
   setPreset: (preset: string) => void;
@@ -10,11 +12,11 @@ const Header: React.FC<HeaderProps> = ({ preset, setPreset }) => {
     setPreset(event.target.value);
   };
 
-  const presetOptions = [
-    { value: 'CT-Bone', label: 'CT Bone (with some tissue)' },
-    { value: 'CT-Bone-Only', label: 'Bones Only' },
-    { value: 'CT-Soft-Tissue', label: 'Soft Tissue' },
-  ];
+  // Use CONSTANTS.VIEWPORT_PRESETS for available presets
+  const presetOptions = CONSTANTS.VIEWPORT_PRESETS.map(p => ({
+    value: p.name,
+    label: p.name // Use name as label since description is not available
+  }));
 
   return (
     <header className='relative bg-[#041C4A] h-[50px]'>
@@ -38,6 +40,7 @@ const Header: React.FC<HeaderProps> = ({ preset, setPreset }) => {
           value={preset}
           onChange={handlePresetChange}
           className="p-2 rounded bg-gray-700 text-white"
+          aria-label="Select viewport preset"
         >
           {presetOptions.map(option => (
             <option key={option.value} value={option.value}>
