@@ -1,4 +1,4 @@
-import { FiUpload, FiImage, FiEdit2, FiDownload, FiUploadCloud } from "react-icons/fi";
+import { FiUpload, FiImage, FiEdit2, FiDownload, FiUploadCloud, FiMapPin } from "react-icons/fi";
 import { useNavigate } from 'react-router-dom';
 import "./sidebar.css";
 import React from 'react';
@@ -7,6 +7,7 @@ interface SideBarProps {
   onFileSelect?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onExportAnnotations?: () => void;
   onImportAnnotations?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onImportPoints?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   isImageLoaded?: boolean;
 }
 
@@ -14,11 +15,13 @@ export function SideBar({
   onFileSelect, 
   onExportAnnotations, 
   onImportAnnotations,
+  onImportPoints,
   isImageLoaded 
 }: SideBarProps) {
   const navigate = useNavigate();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const importInputRef = React.useRef<HTMLInputElement>(null);
+  const pointsInputRef = React.useRef<HTMLInputElement>(null);
 
   // Add debug logging
   React.useEffect(() => {
@@ -34,6 +37,12 @@ export function SideBar({
 
   const handleImportClick = () => {
     importInputRef.current?.click();
+  };
+
+  const handlePointsClick = () => {
+    console.log('Points import button clicked');
+    console.log('Import points handler available:', !!onImportPoints);
+    pointsInputRef.current?.click();
   };
 
   return (
@@ -84,6 +93,22 @@ export function SideBar({
                 <span>Export Annotations</span>
               </button>
             )}
+
+            <input
+              ref={pointsInputRef}
+              type="file"
+              accept=".json"
+              onChange={(e) => {
+                console.log('Points file selected');
+                onImportPoints?.(e);
+              }}
+              className="hidden"
+              aria-label="Import points"
+            />
+            <button onClick={handlePointsClick} className="sidebar-btn">
+              <FiMapPin size={24} />
+              <span>Import Points</span>
+            </button>
           </>
         )}
       </nav>

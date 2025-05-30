@@ -14,6 +14,7 @@ function App() {
   const [handleFileSelect, setHandleFileSelect] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
   const [handleExportAnnotations, setHandleExportAnnotations] = useState<(() => void) | undefined>();
   const [handleImportAnnotations, setHandleImportAnnotations] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
+  const [handleImportPoints, setHandleImportPoints] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
   const [isImageLoaded, setIsImageLoaded] = useState(false);
 
   const setFileHandler = useCallback((handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => {
@@ -28,6 +29,10 @@ function App() {
     setHandleImportAnnotations(() => handler);
   }, []);
 
+  const setImportPointsHandler = useCallback((handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => {
+    setHandleImportPoints(() => handler);
+  }, []);
+
   return (
     <Router>
       <div>
@@ -37,6 +42,7 @@ function App() {
             onFileSelect={handleFileSelect} 
             onExportAnnotations={handleExportAnnotations}
             onImportAnnotations={handleImportAnnotations}
+            onImportPoints={handleImportPoints}
             isImageLoaded={isImageLoaded}
           />
           <div className="flex-grow">
@@ -50,6 +56,7 @@ function App() {
                     setFileHandler={setFileHandler}
                     setExportHandler={setExportHandler}
                     setImportHandler={setImportHandler}
+                    setImportPointsHandler={setImportPointsHandler}
                     setIsImageLoaded={setIsImageLoaded}
                   />
                 } 
