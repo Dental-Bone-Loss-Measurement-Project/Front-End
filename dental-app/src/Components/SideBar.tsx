@@ -1,54 +1,68 @@
-import { FiUpload, FiImage } from "react-icons/fi";
+import { FiUpload, FiImage, FiEdit2, FiDownload, FiUploadCloud, FiMapPin } from "react-icons/fi";
 import { useNavigate } from 'react-router-dom';
 import "./sidebar.css";
-import { useRef } from 'react';
+import React from 'react';
 
-export function SideBar() {
+interface SideBarProps {
+  onFileSelect?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onExportAnnotations?: () => void;
+  onImportAnnotations?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onImportPoints?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  isImageLoaded?: boolean;
+}
+
+export function SideBar({ 
+  onFileSelect, 
+  onExportAnnotations, 
+  onImportAnnotations,
+  onImportPoints,
+  isImageLoaded 
+}: SideBarProps) {
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+  const pointsInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Add debug logging
+  React.useEffect(() => {
+    console.log('SideBar props:', {
+      hasExportHandler: !!onExportAnnotations,
+      isImageLoaded,
+    });
+  }, [onExportAnnotations, isImageLoaded]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
 
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('http://localhost:8000/upload-volume', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) throw new Error('Upload failed');
-      
-      const data = await response.json();
-      localStorage.setItem('volumeUrl', data.volumeUrl);
-      navigate('/convert');
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Upload failed. Please check the console for details.');
-    }
+  const handlePointsClick = () => {
+    console.log('Points import button clicked');
+    console.log('Import points handler available:', !!onImportPoints);
+    pointsInputRef.current?.click();
   };
 
   return (
     <div className="sidebar sidebar-open">
       <nav className="sidebar-nav">
-        <button onClick={handleUploadClick} className="sidebar-btn">
-          <FiUpload size={24} />
-          <span>Upload</span>
-        </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleFileUpload}
-          accept=".mha"
-        />
+        {/* <div className="upload-container"> */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="application/dicom,.dcm"
+            onChange={onFileSelect}
+            className="hidden"
+            aria-label="Upload DICOM files"
+          />
+          <button onClick={handleUploadClick} className="sidebar-btn">
+            <FiUpload size={24} />
+            <span>Upload DICOM Files</span>
+          </button>
+        {/* </div> */}
 
         <button
           onClick={() => navigate('/convert')}
@@ -57,6 +71,46 @@ export function SideBar() {
           <FiImage size={24} />
           <span>Convert to Panorama</span>
         </button>
+
+        {isImageLoaded && (
+          <>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json"
+              onChange={onImportAnnotations}
+              className="hidden"
+              aria-label="Import annotations"
+            />
+            <button onClick={handleImportClick} className="sidebar-btn">
+              <FiUploadCloud size={24} />
+              <span>Import Annotations</span>
+            </button>
+
+            {onExportAnnotations && (
+              <button onClick={onExportAnnotations} className="sidebar-btn">
+                <FiDownload size={24} />
+                <span>Export Annotations</span>
+              </button>
+            )}
+
+            <input
+              ref={pointsInputRef}
+              type="file"
+              accept=".json"
+              onChange={(e) => {
+                console.log('Points file selected');
+                onImportPoints?.(e);
+              }}
+              className="hidden"
+              aria-label="Import points"
+            />
+            <button onClick={handlePointsClick} className="sidebar-btn">
+              <FiMapPin size={24} />
+              <span>Import Points</span>
+            </button>
+          </>
+        )}
       </nav>
     </div>
   );

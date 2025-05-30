@@ -184,131 +184,131 @@ def create_dicom_directory() -> str:
     os.makedirs(dicom_dir_path, exist_ok=True)
     return dicom_dir_name, dicom_dir_path
 
-# --- NEW Endpoint for 3D Volume Upload ---
-# This endpoint handles uploading a 3D medical volume file directly.
-# --- Modified Endpoint for MHA to DICOM Conversion ---
-@app.post("/upload-volume")
-async def upload_volume(file: UploadFile = File(...)):
-    try:
-        # Validate file type
-        if not file.filename.lower().endswith(('.mha', '.mhd')):
-            raise HTTPException(400, "Only MHA/MHD files are supported")
+# # --- NEW Endpoint for 3D Volume Upload ---
+# # This endpoint handles uploading a 3D medical volume file directly.
+# # --- Modified Endpoint for MHA to DICOM Conversion ---
+# @app.post("/upload-volume")
+# async def upload_volume(file: UploadFile = File(...)):
+#     try:
+#         # Validate file type
+#         if not file.filename.lower().endswith(('.mha', '.mhd')):
+#             raise HTTPException(400, "Only MHA/MHD files are supported")
 
-        # Create temporary file path
-        temp_file_name = f"{uuid.uuid4()}_{file.filename}"
-        temp_file_path = os.path.join(UPLOAD_DIR, temp_file_name)
+#         # Create temporary file path
+#         temp_file_name = f"{uuid.uuid4()}_{file.filename}"
+#         temp_file_path = os.path.join(UPLOAD_DIR, temp_file_name)
         
-        # Create DICOM directory
-        dicom_dir_name, dicom_dir_path = create_dicom_directory()
+#         # Create DICOM directory
+#         dicom_dir_name, dicom_dir_path = create_dicom_directory()
         
-        # Save uploaded file
-        with open(temp_file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+#         # Save uploaded file
+#         with open(temp_file_path, "wb") as buffer:
+#             shutil.copyfileobj(file.file, buffer)
         
-        try:
-            # Read MHA file
-            image = sitk.ReadImage(temp_file_path)
-            array = sitk.GetArrayFromImage(image)
+#         try:
+#             # Read MHA file
+#             image = sitk.ReadImage(temp_file_path)
+#             array = sitk.GetArrayFromImage(image)
             
-            # Get metadata
-            spacing = image.GetSpacing()  # (z, y, x)
-            origin = image.GetOrigin()    # (x, y, z)
-            direction = image.GetDirection()
+#             # Get metadata
+#             spacing = image.GetSpacing()  # (z, y, x)
+#             origin = image.GetOrigin()    # (x, y, z)
+#             direction = image.GetDirection()
             
-            # Generate consistent UIDs
-            study_uid = pydicom.uid.generate_uid()
-            series_uid = pydicom.uid.generate_uid()
+#             # Generate consistent UIDs
+#             study_uid = pydicom.uid.generate_uid()
+#             series_uid = pydicom.uid.generate_uid()
             
-            # Create DICOM files for each slice
-            dicom_files: list[str] = []
-            direction_matrix = np.array(direction).reshape(3, 3)
+#             # Create DICOM files for each slice
+#             dicom_files: list[str] = []
+#             direction_matrix = np.array(direction).reshape(3, 3)
             
-            for z in range(array.shape[0]):
-                # Create DICOM dataset
-                ds = pydicom.Dataset()
+#             for z in range(array.shape[0]):
+#                 # Create DICOM dataset
+#                 ds = pydicom.Dataset()
                 
-                # Patient/Study/Series info
-                ds.PatientName = "Anonymous"
-                ds.PatientID = "Unknown"
-                ds.StudyInstanceUID = study_uid
-                ds.SeriesInstanceUID = series_uid
-                ds.SOPInstanceUID = pydicom.uid.generate_uid()
-                ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.2"  # CT Image Storage
-                ds.Modality = "CT"
+#                 # Patient/Study/Series info
+#                 ds.PatientName = "Anonymous"
+#                 ds.PatientID = "Unknown"
+#                 ds.StudyInstanceUID = study_uid
+#                 ds.SeriesInstanceUID = series_uid
+#                 ds.SOPInstanceUID = pydicom.uid.generate_uid()
+#                 ds.SOPClassUID = "1.2.840.10008.5.1.4.1.1.2"  # CT Image Storage
+#                 ds.Modality = "CT"
                 
-                # Image geometry
-                ds.PixelSpacing = [str(spacing[2]), str(spacing[1])]  # x,y spacing
-                ds.SliceThickness = str(spacing[0])
-                ds.ImagePositionPatient = [
-                    str(origin[0] + z * direction_matrix[0][2] * spacing[0]),
-                    str(origin[1] + z * direction_matrix[1][2] * spacing[0]),
-                    str(origin[2] + z * direction_matrix[2][2] * spacing[0])
-                ]
-                ds.ImageOrientationPatient = [
-                    str(direction_matrix[0][0]), str(direction_matrix[0][1]),
-                    str(direction_matrix[1][0]), str(direction_matrix[1][1]),
-                    str(direction_matrix[2][0]), str(direction_matrix[2][1])
-                ]
+#                 # Image geometry
+#                 ds.PixelSpacing = [str(spacing[2]), str(spacing[1])]  # x,y spacing
+#                 ds.SliceThickness = str(spacing[0])
+#                 ds.ImagePositionPatient = [
+#                     str(origin[0] + z * direction_matrix[0][2] * spacing[0]),
+#                     str(origin[1] + z * direction_matrix[1][2] * spacing[0]),
+#                     str(origin[2] + z * direction_matrix[2][2] * spacing[0])
+#                 ]
+#                 ds.ImageOrientationPatient = [
+#                     str(direction_matrix[0][0]), str(direction_matrix[0][1]),
+#                     str(direction_matrix[1][0]), str(direction_matrix[1][1]),
+#                     str(direction_matrix[2][0]), str(direction_matrix[2][1])
+#                 ]
                 
-                # Image parameters
-                ds.Rows = array.shape[2]
-                ds.Columns = array.shape[1]
-                ds.SamplesPerPixel = 1
-                ds.PhotometricInterpretation = "MONOCHROME2"
-                ds.BitsAllocated = 16
-                ds.BitsStored = 16
-                ds.HighBit = 15
-                ds.PixelRepresentation = 0
+#                 # Image parameters
+#                 ds.Rows = array.shape[2]
+#                 ds.Columns = array.shape[1]
+#                 ds.SamplesPerPixel = 1
+#                 ds.PhotometricInterpretation = "MONOCHROME2"
+#                 ds.BitsAllocated = 16
+#                 ds.BitsStored = 16
+#                 ds.HighBit = 15
+#                 ds.PixelRepresentation = 0
                 
-                # Pixel data
-                slice_data = array[z].astype(np.float32)
-                if slice_data.max() > 0:
-                    slice_data = ((slice_data - slice_data.min()) / 
-                                (slice_data.max() - slice_data.min()) * 65535)
-                pixel_data = slice_data.astype(np.uint16).tobytes()
-                ds.PixelData = pixel_data
+#                 # Pixel data
+#                 slice_data = array[z].astype(np.float32)
+#                 if slice_data.max() > 0:
+#                     slice_data = ((slice_data - slice_data.min()) / 
+#                                 (slice_data.max() - slice_data.min()) * 65535)
+#                 pixel_data = slice_data.astype(np.uint16).tobytes()
+#                 ds.PixelData = pixel_data
                 
-                # Metadata
-                ds.ContentDate = datetime.datetime.now().strftime('%Y%m%d')
-                ds.ContentTime = datetime.datetime.now().strftime('%H%M%S.%f')
-                ds.StudyDate = ds.ContentDate
-                ds.StudyTime = ds.ContentTime
-                ds.SeriesDate = ds.ContentDate
-                ds.SeriesTime = ds.ContentTime
+#                 # Metadata
+#                 ds.ContentDate = datetime.datetime.now().strftime('%Y%m%d')
+#                 ds.ContentTime = datetime.datetime.now().strftime('%H%M%S.%f')
+#                 ds.StudyDate = ds.ContentDate
+#                 ds.StudyTime = ds.ContentTime
+#                 ds.SeriesDate = ds.ContentDate
+#                 ds.SeriesTime = ds.ContentTime
                 
-                # File metadata
-                ds.file_meta = pydicom.Dataset()
-                ds.file_meta.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
-                ds.file_meta.MediaStorageSOPClassUID = ds.SOPClassUID
-                ds.file_meta.MediaStorageSOPInstanceUID = ds.SOPInstanceUID
+#                 # File metadata
+#                 ds.file_meta = pydicom.Dataset()
+#                 ds.file_meta.TransferSyntaxUID = pydicom.uid.ExplicitVRLittleEndian
+#                 ds.file_meta.MediaStorageSOPClassUID = ds.SOPClassUID
+#                 ds.file_meta.MediaStorageSOPInstanceUID = ds.SOPInstanceUID
                 
-                # Save DICOM file
-                filename = f"slice_{z:04d}.dcm"
-                file_path = os.path.join(dicom_dir_path, filename)
-                ds.save_as(file_path, write_like_original=False)
-                dicom_files.append(filename)
+#                 # Save DICOM file
+#                 filename = f"slice_{z:04d}.dcm"
+#                 file_path = os.path.join(dicom_dir_path, filename)
+#                 ds.save_as(file_path, write_like_original=False)
+#                 dicom_files.append(filename)
             
-            return JSONResponse(content={
-                "dicomBaseUrl": f"/static/{dicom_dir_name}/",
-                "seriesInstanceUID": series_uid,
-                "studyInstanceUID": study_uid,
-                "sliceCount": len(dicom_files),
-                "dimensions": {
-                    "x": array.shape[2],
-                    "y": array.shape[1],
-                    "z": array.shape[0]
-                }
-            })
+#             return JSONResponse(content={
+#                 "dicomBaseUrl": f"/static/{dicom_dir_name}/",
+#                 "seriesInstanceUID": series_uid,
+#                 "studyInstanceUID": study_uid,
+#                 "sliceCount": len(dicom_files),
+#                 "dimensions": {
+#                     "x": array.shape[2],
+#                     "y": array.shape[1],
+#                     "z": array.shape[0]
+#                 }
+#             })
             
-        except Exception as e:
-            raise HTTPException(500, f"DICOM conversion failed: {str(e)}")
+#         except Exception as e:
+#             raise HTTPException(500, f"DICOM conversion failed: {str(e)}")
             
-        finally:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+#         finally:
+#             if os.path.exists(temp_file_path):
+#                 os.remove(temp_file_path)
                 
-    except Exception as e:
-        raise HTTPException(500, f"Processing failed: {str(e)}")
+#     except Exception as e:
+#         raise HTTPException(500, f"Processing failed: {str(e)}")
 
 
 

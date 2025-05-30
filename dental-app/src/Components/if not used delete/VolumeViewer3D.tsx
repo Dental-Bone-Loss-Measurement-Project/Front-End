@@ -9,7 +9,7 @@ import {
   Types,
 } from '@cornerstonejs/core';
 import * as cornerstoneTools from '@cornerstonejs/tools';
-import { initDemo } from '../../utils/demo/helpers'; // Use if needed for initialization.
+import { initDemo } from '../../../utils/demo/helpers'; // Use if needed for initialization.
 import { RGB } from '@cornerstonejs/core/types';
 
 const { ToolGroupManager } = cornerstoneTools;
@@ -178,7 +178,7 @@ const VolumeViewer3D: React.FC<VolumeViewer3DProps> = ({ preset }) => {
         toolGroup.addViewport(viewportId, renderingEngineId);
 
         // Fetch DICOM image IDs from Orthanc.
-        const { createImageIdsAndCacheMetaData } = await import('../../utils/demo/helpers');
+        const { createImageIdsAndCacheMetaData } = await import('../../../utils/demo/helpers');
         setStatus('Fetching DICOM images from Orthanc...');
         console.log("before image ids");
         console.log("studyUID", studyUID);
