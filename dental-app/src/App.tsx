@@ -16,6 +16,9 @@ function App() {
   const [handleImportAnnotations, setHandleImportAnnotations] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
   const [handleImportPoints, setHandleImportPoints] = useState<((event: React.ChangeEvent<HTMLInputElement>) => void) | undefined>();
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [viewportId, setViewportId] = useState<string>('VOLUME_VIEWPORT_ID');
+  const [renderingEngineId, setRenderingEngineId] = useState<string>('volumeRenderingEngine');
+  const [volumeId, setVolumeId] = useState<string>('cornerstoneStreamingImageVolume:VOLUME_ID');
 
   const setFileHandler = useCallback((handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => {
     setHandleFileSelect(() => handler);
@@ -44,6 +47,9 @@ function App() {
             onImportAnnotations={handleImportAnnotations}
             onImportPoints={handleImportPoints}
             isImageLoaded={isImageLoaded}
+            viewportId={viewportId}
+            renderingEngineId={renderingEngineId}
+            volumeId={volumeId}
           />
           <div className="flex-grow">
             <Routes>

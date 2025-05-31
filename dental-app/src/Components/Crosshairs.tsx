@@ -50,6 +50,7 @@ import vtkPolyDataMapper from '@kitware/vtk.js/Rendering/Core/PolyDataMapper';
 import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkSphereSource from '@kitware/vtk.js/Filters/Sources/SphereSource';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
+import HURangeSlider from './HURangeSlider';
 
 const volumeName = 'VOLUME_ID';
 const volumeLoaderScheme = 'cornerstoneStreamingImageVolume';
@@ -66,7 +67,7 @@ const synchronizerId = 'SLAB_THICKNESS_SYNCHRONIZER_ID';
 
 // Cache settings for large series
 const MAX_CACHE_SIZE_MB = 2048; // 2GB cache
-const BATCH_SIZE = 50; // Process 50 files at a time
+const LARGE_SERIES_THRESHOLD = 302; // Apply downsampling for series with more than 302 slices
 const LOW_QUALITY_TEXTURE = true; // Use lower quality textures for large series
 
 interface CrosshairsProps {
@@ -103,8 +104,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
   setExportHandler,
   setImportHandler,
   setImportPointsHandler,
-  setIsImageLoaded,
-  setAddPointHandler
+  setIsImageLoaded
 }) => {
   const [isPanActive, setIsPanActive] = useState(false);
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
@@ -122,6 +122,8 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
   const running = useRef(false);
 
   let synchronizer: cornerstoneTools.Synchronizer;
+
+  const [isImageLoaded, setIsImageLoadedLocal] = useState(false);
 
   useEffect(() => {
     activeViewportIdRef.current = activeViewportId;
@@ -1179,7 +1181,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
     }
   };
 
-  // Replace the volume loading code section with this updated version
+  // Replace the volume loading code section with this simplified version
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) {
@@ -1187,18 +1189,15 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
       return;
     }
 
-    if (files.length > 450) {
-      alert('Warning: Loading 450+ files may require significant system resources. Ensure you have a high-performance device.');
-    }
-
-    if (files.length == 1) {
-      alert('Warning: Loading a single file may not provide a complete view. Please upload multiple files for better visualization.');
-      return;
-    }
-
     const imageIds: { id: string; fileName: string }[] = [];
-    const validImageIds: string[] = [];
+    const isLargeSeries = files.length > LARGE_SERIES_THRESHOLD;
 
+    if (isLargeSeries) {
+      console.log(`Large series detected (${files.length} files). Applying downsampling (take 1, skip 1).`);
+      alert(`Large series detected (${files.length} files). Applying downsampling for better performance.`);
+    }
+
+    // Process all files at once
     for (const file of Array.from(files)) {
       try {
         if (!file.name.toLowerCase().endsWith('.dcm') && file.type !== 'application/dicom') {
@@ -1212,28 +1211,34 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
       }
     }
 
-    for (let i = 0; i < imageIds.length; i += BATCH_SIZE) {
-      const batch = imageIds.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async ({ id: imageId, fileName }) => {
-          try {
-            await imageLoader.loadImage(imageId);
-            const imagePixelModule = metaData.get('imagePixelModule', imageId);
-            if (imagePixelModule && typeof imagePixelModule.pixelRepresentation !== 'undefined') {
-              validImageIds.push(imageId);
-            } else {
-              console.warn(`Skipping imageId ${imageId} (file: ${fileName}): Missing or invalid metadata.`, {
-                imagePixelModule,
-              });
-            }
-          } catch (error) {
-            console.warn(`Skipping imageId ${imageId} (file: ${fileName}) due to load error:`, error);
+    // Sort imageIds by filename to ensure correct order
+    imageIds.sort((a, b) => a.fileName.localeCompare(b.fileName));
+
+    // Apply downsampling for large series (take 1, skip 1)
+    const selectedImageIds = isLargeSeries 
+      ? imageIds.filter((_, index) => index % 2 === 0) // Take every even-indexed image (0, 2, 4, ...)
+      : imageIds;
+
+    console.log(`Original series: ${imageIds.length} images, After downsampling: ${selectedImageIds.length} images`);
+
+    // Load all images at once
+    const validImageIds = await Promise.all(
+      selectedImageIds.map(async ({ id: imageId, fileName }) => {
+        try {
+          await imageLoader.loadImage(imageId);
+          const imagePixelModule = metaData.get('imagePixelModule', imageId);
+          if (imagePixelModule && typeof imagePixelModule.pixelRepresentation !== 'undefined') {
+            return imageId;
+          } else {
+            console.warn(`Skipping imageId ${imageId} (file: ${fileName}): Missing or invalid metadata.`);
+            return null;
           }
-        })
-      );
-      cache.purgeCache();
-      console.log('Cache size after batch:', cache.getCacheSize() / (1024 * 1024), 'MB');
-    }
+        } catch (error) {
+          console.warn(`Skipping imageId ${imageId} (file: ${fileName}) due to load error:`, error);
+          return null;
+        }
+      })
+    ).then(ids => ids.filter((id): id is string => id !== null));
 
     if (validImageIds.length === 0) {
       alert('No valid DICOM files with required metadata were found. Please upload valid DICOM files.');
@@ -1247,7 +1252,10 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
       }
 
       // Load new volume
-      const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds: validImageIds });
+      const volume = await volumeLoader.createAndCacheVolume(volumeId, { 
+        imageIds: validImageIds
+      });
+
       await volume.load();
 
       const renderingEngine = getRenderingEngine(renderingEngineId);
@@ -1256,45 +1264,41 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
         return;
       }
 
-      // Set volumes for all viewports
+      // Set volumes for all viewports with proper initialization
       await setVolumesForViewports(
         renderingEngine,
-        [{ volumeId, textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0 }],
+        [{
+          volumeId,
+        }],
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
-      // Disable crosshairs after volume load
-      const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
-      toolGroup.setToolDisabled(CrosshairsTool.toolName);
-      setIsCrosshairsActive(false);
-
-      // Force render to ensure crosshairs are hidden
-      renderingEngine.renderViewports(viewportIds);
-
-      // Apply preset to 3D viewport
-      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
-      if (volumeViewport) {
-        if (preset === 'CT-Bone-Only') {
-          volumeViewport.setProperties({
-            voiRange: { lower: 300, upper: 3000 },
-            colormap: csRenderCore.utilities.colormap.getColormap('white'),
-            preset: undefined,
-            VOILUTFunction: Enums.VOILUTFunctionType.LINEAR,
-            invert: false,
-            interpolationType: Enums.InterpolationType.NEAREST
+      // Initialize each viewport
+      const viewports = [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId];
+      viewports.forEach(viewportId => {
+        const viewport = renderingEngine.getViewport(viewportId) as Types.IVolumeViewport;
+        if (viewport) {
+          viewport.resetCamera();
+          viewport.setProperties({
+            voiRange: { lower: -1000, upper: 3000 },
+            VOILUTFunction: Enums.VOILUTFunctionType.LINEAR
           });
-        } else {
-          volumeViewport.setProperties({ preset });
-        }
-      }
 
-      // Final render
-      renderingEngine.render();
-      setIsImageLoaded(true);
+          if (viewportId === volumeViewportId) {
+            viewport.setProperties({
+              preset: 'CT-Bone'
+            });
+          }
+        }
+      });
+
+      // Force render all viewports
+      renderingEngine.renderViewports(viewports);
+      setIsImageLoadedLocal(true);
 
     } catch (error) {
       console.error('Error loading volume:', error);
-      setIsImageLoaded(false);
+      setIsImageLoadedLocal(false);
       alert('Failed to load DICOM files. Please ensure all files are valid and try again.');
     }
   };
@@ -1394,7 +1398,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
           y: point.y,
           z: point.z,
           color,
-          size: 2  // Increased from 5 to 20mm radius for better visibility
+          size: 0.5  // Increased from 5 to 20mm radius for better visibility
         }, volume);
 
         console.log('Added sphere:', { point, success, size: 2 });
@@ -1538,68 +1542,74 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
     }
   }, [preset]);
 
+  // Update the parent component's isImageLoaded state when local state changes
+  useEffect(() => {
+    setIsImageLoaded?.(isImageLoaded);
+  }, [isImageLoaded, setIsImageLoaded]);
+
   return (
-    <div className="bg-black">
-      <div className="flex flex-col h-screen">
-        <div className="flex-1 p-1">
-          <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
-            <div
-              ref={volumeViewportElementRef}
-              className={`
-                relative
-                overflow-hidden
-                cursor-pointer
-                transition-all
-                duration-200
-                border border-blue-500/50
-              `}
-            />
-            <div
-              ref={axialViewportElementRef}
-              onClick={() => setActiveViewportId(axialViewportId)}
-              className={`
-                relative
-                overflow-hidden
-                cursor-pointer
-                transition-all
-                duration-200
-                ${activeViewportId === axialViewportId
-                  ? 'border-4 border-blue-500'
-                  : 'border border-blue-500/50'
-                }
-              `}
-            />
-            <div
-              ref={sagittalViewportElementRef}
-              onClick={() => setActiveViewportId(sagittalViewportId)}
-              className={`
-                relative
-                overflow-hidden
-                cursor-pointer
-                transition-all
-                duration-200
-                ${activeViewportId === sagittalViewportId
-                  ? 'border-4 border-blue-500'
-                  : 'border border-blue-500/50'
-                }
-              `}
-            />
-            <div
-              ref={coronalViewportElementRef}
-              onClick={() => setActiveViewportId(coronalViewportId)}
-              className={`
-                relative
-                overflow-hidden
-                cursor-pointer
-                transition-all
-                duration-200
-                ${
-                  activeViewportId === coronalViewportId
+    <div>
+      <div className="bg-black">
+        <div className="flex flex-col h-screen">
+          <div className="flex-1 p-1">
+            <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-1">
+              <div
+                ref={volumeViewportElementRef}
+                className={`
+                  relative
+                  overflow-hidden
+                  cursor-pointer
+                  transition-all
+                  duration-200
+                  border border-blue-500/50
+                `}
+              />
+              <div
+                ref={axialViewportElementRef}
+                onClick={() => setActiveViewportId(axialViewportId)}
+                className={`
+                  relative
+                  overflow-hidden
+                  cursor-pointer
+                  transition-all
+                  duration-200
+                  ${activeViewportId === axialViewportId
                     ? 'border-4 border-blue-500'
                     : 'border border-blue-500/50'
-                }
-              `}
-            />
+                  }
+                `}
+              />
+              <div
+                ref={sagittalViewportElementRef}
+                onClick={() => setActiveViewportId(sagittalViewportId)}
+                className={`
+                  relative
+                  overflow-hidden
+                  cursor-pointer
+                  transition-all
+                  duration-200
+                  ${activeViewportId === sagittalViewportId
+                    ? 'border-4 border-blue-500'
+                    : 'border border-blue-500/50'
+                  }
+                `}
+              />
+              <div
+                ref={coronalViewportElementRef}
+                onClick={() => setActiveViewportId(coronalViewportId)}
+                className={`
+                  relative
+                  overflow-hidden
+                  cursor-pointer
+                  transition-all
+                  duration-200
+                  ${activeViewportId === coronalViewportId
+                    ? 'border-4 border-blue-500'
+                    : 'border border-blue-500/50'
+                  }
+                `}
+              />
+            </div>
           </div>
         </div>
       </div>

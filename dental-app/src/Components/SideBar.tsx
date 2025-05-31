@@ -2,6 +2,7 @@ import { FiUpload, FiImage, FiEdit2, FiDownload, FiUploadCloud, FiMapPin } from 
 import { useNavigate } from 'react-router-dom';
 import "./sidebar.css";
 import React from 'react';
+import HURangeSlider from './HURangeSlider';
 
 interface SideBarProps {
   onFileSelect?: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -9,6 +10,9 @@ interface SideBarProps {
   onImportAnnotations?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onImportPoints?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   isImageLoaded?: boolean;
+  viewportId?: string;
+  renderingEngineId?: string;
+  volumeId?: string;
 }
 
 export function SideBar({ 
@@ -16,7 +20,10 @@ export function SideBar({
   onExportAnnotations, 
   onImportAnnotations,
   onImportPoints,
-  isImageLoaded 
+  isImageLoaded,
+  viewportId,
+  renderingEngineId,
+  volumeId
 }: SideBarProps) {
   const navigate = useNavigate();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -28,8 +35,9 @@ export function SideBar({
     console.log('SideBar props:', {
       hasExportHandler: !!onExportAnnotations,
       isImageLoaded,
+      hasVolumeProps: !!(viewportId && renderingEngineId && volumeId)
     });
-  }, [onExportAnnotations, isImageLoaded]);
+  }, [onExportAnnotations, isImageLoaded, viewportId, renderingEngineId, volumeId]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -71,6 +79,19 @@ export function SideBar({
           <FiImage size={24} />
           <span>Convert to Panorama</span>
         </button>
+
+        {isImageLoaded && viewportId && renderingEngineId && volumeId && (
+          <div className="p-4">
+            <HURangeSlider
+              viewportId={viewportId}
+              renderingEngineId={renderingEngineId}
+              volumeId={volumeId}
+              onRangeChange={(min, max) => {
+                console.log(`HU Threshold changed: ${min} to ${max}`);
+              }}
+            />
+          </div>
+        )}
 
         {isImageLoaded && (
           <>
