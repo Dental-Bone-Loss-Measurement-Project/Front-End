@@ -44,6 +44,12 @@ import { vec3, mat4 } from 'gl-matrix';
 import cornerstoneDICOMImageLoader from '@cornerstonejs/dicom-image-loader';
 import * as csRenderCore from '@cornerstonejs/core';
 import axios from 'axios';
+import vtkPoints from '@kitware/vtk.js/Common/Core/Points';
+import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
+import vtkPolyDataMapper from '@kitware/vtk.js/Rendering/Core/PolyDataMapper';
+import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
+import vtkSphereSource from '@kitware/vtk.js/Filters/Sources/SphereSource';
+import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 
 const volumeName = 'VOLUME_ID';
 const volumeLoaderScheme = 'cornerstoneStreamingImageVolume';
@@ -68,7 +74,9 @@ interface CrosshairsProps {
   setFileHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
   setExportHandler: (handler: () => void) => void;
   setImportHandler: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
+  setImportPointsHandler?: (handler: (event: React.ChangeEvent<HTMLInputElement>) => void) => void;
   setIsImageLoaded: (isLoaded: boolean) => void;
+  setAddPointHandler?: (handler: (point: Point3D) => boolean) => void;
 }
 
 // Type definition for annotation metadata to include viewportId
@@ -80,12 +88,23 @@ interface AnnotationMetadata extends Types.ViewReference {
   referencedImageId?: string;
 }
 
+// Add this type definition near the top with other interfaces
+interface Point3D {
+  x: number;
+  y: number;
+  z: number;
+  color?: [number, number, number];
+  size?: number;
+}
+
 const CrossHairs: React.FC<CrosshairsProps> = ({ 
   preset, 
   setFileHandler,
   setExportHandler,
   setImportHandler,
-  setIsImageLoaded 
+  setImportPointsHandler,
+  setIsImageLoaded,
+  setAddPointHandler
 }) => {
   const [isPanActive, setIsPanActive] = useState(false);
   const [isCrosshairsActive, setIsCrosshairsActive] = useState(false);
@@ -1107,6 +1126,60 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
     synchronizer.setEnabled(false);
   }
 
+  // Add this function before the CrossHairs component
+  const addPointToVolume = (
+    viewport: Types.IVolumeViewport,
+    point: Point3D,
+    volume: csRenderCore.Types.IImageVolume | csRenderCore.Types.IStreamingImageVolume
+  ) => {
+    try {
+      console.log('Adding point to volume:', point);
+      const { spacing } = volume;
+      const worldPoint = [
+        point.x * spacing[0],
+        point.y * spacing[1],
+        point.z * spacing[2]
+      ] as [number, number, number];
+
+      console.log('World point coordinates:', worldPoint);
+
+      // Create a sphere using vtk.js
+      const sphereSource = vtkSphereSource.newInstance({
+        center: worldPoint,
+        radius: point.size || 2,
+        phiResolution: 32,
+        thetaResolution: 32
+      });
+
+      console.log('Created sphere source');
+
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(sphereSource.getOutputPort());
+
+      const actor = vtkActor.newInstance();
+      const color = point.color || [1, 0, 0];
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(color[0], color[1], color[2]);
+
+      console.log('Created actor with color:', color);
+
+      // Add the actor to the viewport
+      const actorUid = `point-${Date.now()}-${Math.random()}`;
+      viewport.addActor({
+        uid: actorUid,
+        actor
+      });
+
+      console.log('Added actor to viewport:', actorUid);
+      viewport.render();
+      return true;
+    } catch (error) {
+      console.error('Error adding point to volume:', error);
+      return false;
+    }
+  };
+
+  // Replace the volume loading code section with this updated version
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) {
@@ -1168,14 +1241,12 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
     }
 
     try {
-      try {
-        if (cache.getVolumeLoadObject(volumeId)) {
-          cache.removeVolumeLoadObject(volumeId);
-        }
-      } catch (error) {
-        console.warn(`Failed to remove volume ${volumeId} from cache:`, error);
+      // Clear existing volume
+      if (cache.getVolumeLoadObject(volumeId)) {
+        cache.removeVolumeLoadObject(volumeId);
       }
 
+      // Load new volume
       const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds: validImageIds });
       await volume.load();
 
@@ -1185,21 +1256,22 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
         return;
       }
 
+      // Set volumes for all viewports
       await setVolumesForViewports(
         renderingEngine,
         [{ volumeId, textureQuality: LOW_QUALITY_TEXTURE ? 0.5 : 1.0 }],
         [axialViewportId, sagittalViewportId, coronalViewportId, volumeViewportId]
       );
 
-      // Ensure crosshairs are completely disabled after volume load
+      // Disable crosshairs after volume load
       const toolGroup = cornerstoneTools.ToolGroupManager.getToolGroup(toolGroupId);
       toolGroup.setToolDisabled(CrosshairsTool.toolName);
       setIsCrosshairsActive(false);
 
-      // Force a render to ensure crosshairs are hidden
+      // Force render to ensure crosshairs are hidden
       renderingEngine.renderViewports(viewportIds);
 
-      // Apply preset only to the 3D viewport
+      // Apply preset to 3D viewport
       const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
       if (volumeViewport) {
         if (preset === 'CT-Bone-Only') {
@@ -1216,12 +1288,126 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
         }
       }
 
-      // After successful volume load
+      // Final render
+      renderingEngine.render();
       setIsImageLoaded(true);
+
     } catch (error) {
       console.error('Error loading volume:', error);
       setIsImageLoaded(false);
       alert('Failed to load DICOM files. Please ensure all files are valid and try again.');
+    }
+  };
+
+  // Update the handleImportPoints function to preserve the volume while adding points
+  const handleImportPoints = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('Import points handler called in Crosshairs component');
+    const file = event.target.files?.[0];
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
+
+    try {
+      console.log('Reading file:', file.name);
+      const text = await file.text();
+      console.log('File contents:', text);
+      const data = JSON.parse(text);
+
+      if (!data.points || !Array.isArray(data.points)) {
+        console.error('Invalid JSON format - missing points array:', data);
+        alert('Invalid JSON format: Expected an object with a "points" array.');
+        return;
+      }
+
+      console.log('Parsed points:', data.points);
+
+      // Validate points format
+      const validPoints = data.points.filter(point => 
+        typeof point.x === 'number' && 
+        typeof point.y === 'number' && 
+        typeof point.z === 'number'
+      );
+
+      console.log('Valid points:', validPoints);
+
+      if (validPoints.length === 0) {
+        console.error('No valid points found in data');
+        alert('No valid points found in the file.');
+        return;
+      }
+
+      // Get the volume and viewport
+      const renderingEngine = getRenderingEngine(renderingEngineId);
+      if (!renderingEngine) {
+        console.error('Rendering engine not found');
+        alert('Rendering engine not initialized.');
+        return;
+      }
+
+      const volumeViewport = renderingEngine.getViewport(volumeViewportId) as Types.IVolumeViewport;
+      const volume = cache.getVolume(volumeId);
+      
+      if (!volumeViewport || !volume) {
+        console.error('Volume or viewport not found', { 
+          hasVolume: !!volume, 
+          hasViewport: !!volumeViewport,
+          volumeId,
+          viewportId: volumeViewportId
+        });
+        alert('Volume not loaded. Please load a DICOM series first.');
+        return;
+      }
+
+      console.log('Volume and viewport found, proceeding with sphere creation');
+      
+      // Only clear point actors (those with 'point-' prefix in their UID)
+      console.log('Clearing existing point actors');
+      const actors = volumeViewport.getActors();
+      console.log('Found existing actors:', actors.length);
+      actors.forEach(actor => {
+        if (actor.uid.startsWith('point-')) {
+          try {
+            volumeViewport._removeActor(actor.uid);
+            console.log('Removed point actor:', actor.uid);
+          } catch (error) {
+            console.error('Error removing point actor:', error);
+          }
+        }
+      });
+
+      console.log('Adding new spheres');
+      // Add each point as a sphere
+      validPoints.forEach((point, index) => {
+        console.log('Processing point:', point);
+        // Create a unique color for each point
+        const hue = (index * 137.5) % 360; // Golden angle approximation for good color distribution
+        const color: [number, number, number] = [
+          Math.cos(hue * Math.PI / 180) * 0.5 + 0.5,
+          Math.cos((hue + 120) * Math.PI / 180) * 0.5 + 0.5,
+          Math.cos((hue + 240) * Math.PI / 180) * 0.5 + 0.5
+        ];
+
+        // Add the sphere at the point location with a larger size
+        const success = addPointToVolume(volumeViewport, {
+          x: point.x,
+          y: point.y,
+          z: point.z,
+          color,
+          size: 2  // Increased from 5 to 20mm radius for better visibility
+        }, volume);
+
+        console.log('Added sphere:', { point, success, size: 2 });
+      });
+
+      // Render the viewport
+      console.log('Rendering viewport');
+      volumeViewport.render();
+      console.log(`Successfully added ${validPoints.length} spheres`);
+
+    } catch (error) {
+      console.error('Error importing points:', error);
+      alert('Failed to import points. Please ensure the file is valid JSON.');
     }
   };
 
@@ -1283,6 +1469,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
     });
 
     // Set up the file handler when component mounts
+    console.log('Setting up file handlers');
     setFileHandler(handleFileSelect);
 
     // Set up the export handler when component mounts
@@ -1290,6 +1477,14 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
 
     // Set up the import handler when component mounts
     setImportHandler(importAnnotations);
+
+    // Set up the points import handler when component mounts
+    if (setImportPointsHandler) {
+      console.log('Setting up points import handler');
+      setImportPointsHandler(handleImportPoints);
+    } else {
+      console.warn('setImportPointsHandler not provided');
+    }
 
     return () => {
       const canvases = [
@@ -1314,6 +1509,7 @@ const CrossHairs: React.FC<CrosshairsProps> = ({
     setFileHandler,
     setExportHandler,
     setImportHandler,
+    setImportPointsHandler,
   ]);
 
   useEffect(() => {
